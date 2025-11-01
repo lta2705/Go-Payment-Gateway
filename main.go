@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"gin-demo/dto"
+
 	"github.com/gin-gonic/gin"
 	"log"
 )
@@ -11,11 +11,6 @@ func main() {
 	fmt.Println("Hello, World!")
 
 	r := gin.Default()
-
-	tx := &dto.TransactionDTO{}
-	tx.SetTxType("QR")
-	tx.SetPcPosId("id12345")
-	tx.SetPcPosTxnId("txn67890")
 
 	ctx := gin.Context{}
 	ctx.BindHeader(``)
@@ -28,9 +23,7 @@ func main() {
 
 	r.POST("/transaction", func(c *gin.Context) {
 		c.JSON(200, gin.H{
-			"txType":     tx.GetTxType(),
-			"pcPosId":    tx.GetPcPosId(),
-			"pcPosTxnId": tx.GetPcPosTxnId(),
+			"status": "transaction received",
 		})
 	})
 
