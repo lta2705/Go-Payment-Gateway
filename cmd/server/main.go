@@ -1,13 +1,12 @@
 package main
 
 import (
-	"fmt"
 	"github.com/gin-gonic/gin"
-	"log"
+	"github.com/lta2705/Go-Payment-Gateway/internal/middleware"
 )
 
 func main() {
-	fmt.Println("Hello, World!")
+	logger := middleware.SetupLogger()
 
 	r := gin.Default()
 
@@ -21,9 +20,8 @@ func main() {
 		c.JSON(200, gin.H{
 			"status": "transaction received",
 		})
-		log.Println("Transaction endpoint hit")
+		logger.Info("Transaction endpoint hit")
 	})
 
-	log.Println("Starting server on port 8084")
 	r.Run(":8084")
 }
