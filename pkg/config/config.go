@@ -23,10 +23,10 @@ type DBConfig struct {
 }
 
 func LoadDBConfig() *DBConfig {
-	// Load .env file (nếu có)
+	// Load .env file
 	err := godotenv.Load()
 	if err != nil {
-		log.Println("⚠️ Không tìm thấy file .env, sử dụng biến môi trường hệ thống")
+		log.Println(".env file not found, using environment variables")
 	}
 
 	return &DBConfig{
