@@ -15,8 +15,9 @@ type TransactionService interface {
 	CreateQRTransaction(dto *dto.TransactionDTO) (*dto.TransactionDTO, error)
 }
 type TransactionServiceImpl struct {
-	TxRepo repository.TransactionRepository
-	logger *zap.Logger
+	TxRepo         repository.TransactionRepository
+	logger         *zap.Logger
+	pollingService PollingService
 }
 
 func (t TransactionServiceImpl) CreateSaleTransaction(dto *dto.TransactionDTO) (*dto.TransactionDTO, error) {
