@@ -20,4 +20,5 @@ type Transaction struct {
 	ErrorCode       string    `gorm:"type:varchar(50)"`
 	ErrorDetail     string    `gorm:"type:varchar(50)"`
 	CreatedAt       time.Time `gorm:"type:timestamp"`
+	UpdatedBy       string    `gorm:"type:varchar(50)"`
 }
