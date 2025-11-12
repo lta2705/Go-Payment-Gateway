@@ -1,19 +1,19 @@
 package service
 
 import (
-	"os"
-	"strconv"
-	"strings"
-	"time"
 	"github.com/joho/godotenv"
 	_ "github.com/lta2705/Go-Payment-Gateway/internal/dto"
 	"github.com/lta2705/Go-Payment-Gateway/internal/model"
 	"github.com/lta2705/Go-Payment-Gateway/internal/repository"
 	"go.uber.org/zap"
+	"os"
+	"strconv"
+	"strings"
+	"time"
 )
 
 type PollingService interface {
-	Poll(model *model.Transaction, t *string) model.Transaction
+	Poll(model *model.Transaction, t string) *model.Transaction
 }
 
 type PollingServiceImpl struct {
@@ -35,7 +35,7 @@ func (p PollingServiceImpl) getTimeout() int {
 	return timeout
 }
 
-func (p PollingServiceImpl) Poll(model *model.Transaction, t *string) model.Transaction {
+func (p PollingServiceImpl) Poll(model *model.Transaction, t string) *model.Transaction {
 	startTime := time.Now()
 	timeout := time.Duration(p.getTimeout()) * time.Millisecond
 	transactionId := model.TransactionId
@@ -46,14 +46,14 @@ func (p PollingServiceImpl) Poll(model *model.Transaction, t *string) model.Tran
 		if err != nil {
 			p.logger.Error("Error fetching transaction during polling", zap.Error(err))
 		}
-		if p.isUpdate(pendingTransaction, *t) {
+		if p.isUpdate(pendingTransaction, t) {
 			p.logger.Info("Transaction status updated", zap.String("TransactionId", transactionId))
-			return *pendingTransaction
+			return pendingTransaction
 		}
 		time.Sleep(2 * time.Second) // Poll every 2 seconds
 	}
 
-	return *model
+	return model
 }
 
 func (p PollingServiceImpl) isUpdate(model *model.Transaction, t string) bool {
@@ -89,7 +89,7 @@ func (p PollingServiceImpl) isUpdate(model *model.Transaction, t string) bool {
 		return false
 	}
 }
- 
+
 func NewPollingService(logger *zap.Logger, txRepo repository.TransactionRepository) PollingService {
 	return &PollingServiceImpl{
 		logger: logger,
