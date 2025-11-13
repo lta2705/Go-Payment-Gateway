@@ -5,7 +5,18 @@ import (
 	"go.uber.org/zap"
 )
 
+var logger *zap.Logger
+
 type MerchantCredentialsHandler struct {
-	logger                     *zap.SugaredLogger
 	merchantCredentialsService service.MerchantCredentialsService
+}
+
+func NewMerchantCredentialsHandler(merchantCredentialsService service.MerchantCredentialsService) *MerchantCredentialsHandler {
+	return &MerchantCredentialsHandler{
+		merchantCredentialsService: merchantCredentialsService,
+	}
+}
+
+func (h *MerchantCredentialsHandler) Authenticate(apiKey string) *string {
+	return h.merchantCredentialsService.Authenticate(apiKey)
 }

@@ -9,12 +9,9 @@ import (
 	"gorm.io/gorm"
 )
 
-type Database struct {
-	logger *zap.Logger
-}
+var logger *zap.Logger
 
 func SetupDatabase(cfg *config.DBConfig) *gorm.DB {
-	logger := SetupLogger()
 
 	dsn := fmt.Sprintf(
 		"host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
