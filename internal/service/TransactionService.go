@@ -3,6 +3,7 @@ package service
 import (
 	"github.com/jinzhu/copier"
 	"github.com/lta2705/Go-Payment-Gateway/internal/dto"
+	"github.com/lta2705/Go-Payment-Gateway/internal/middleware"
 	"github.com/lta2705/Go-Payment-Gateway/internal/model"
 	"github.com/lta2705/Go-Payment-Gateway/internal/repository"
 	"go.uber.org/zap"
@@ -16,23 +17,20 @@ type TransactionService interface {
 }
 type TransactionServiceImpl struct {
 	TxRepo         repository.TransactionRepository
-	logger         *zap.Logger
 	pollingService PollingService
 }
 
 func (t *TransactionServiceImpl) CreateSaleTransaction(dto *dto.TransactionDTO) (*dto.TransactionDTO, error) {
+	logger := middleware.CreateLogger()
+	defer logger.Sync()
+
 	pcPosId := dto.PcPosId
 	transactionId := dto.TransactionId
 
 	transaction, err := t.TxRepo.FindByPcPosIdAndTransactionId(pcPosId, transactionId)
 
-	if err != nil && transaction != nil {
-		t.logger.Error("Error checking transaction existence", zap.Error(err), zap.String("PcPosId", pcPosId))
-		return nil, err // Trả về lỗi hệ thống
-	}
-
 	if transaction != nil {
-		t.logger.Info("Sale transaction already exists", zap.String("PcPosId", pcPosId), zap.String("TransactionId", transactionId))
+		logger.Info("Sale transaction already exists", zap.String("PcPosId", pcPosId), zap.String("TransactionId", transactionId))
 
 		dto.Status = "FAILED"
 		dto.ErrorCode = "01"
@@ -40,22 +38,24 @@ func (t *TransactionServiceImpl) CreateSaleTransaction(dto *dto.TransactionDTO) 
 		return dto, nil
 	}
 
-	t.logger.Info("Creating new sale transaction", zap.String("PcPosId", pcPosId), zap.String("TransactionId", transactionId))
+	logger.Info("Creating new sale transaction", zap.String("PcPosId", pcPosId), zap.String("TransactionId", transactionId))
 
 	newTransaction := &model.Transaction{}
 	err = copier.Copy(newTransaction, dto)
 	if err != nil {
-		t.logger.Error("Error copying transaction DTO to model", zap.Error(err))
+		logger.Error("Error copying transaction DTO to model", zap.Error(err))
 		return nil, err
 	}
+
+	logger.Info("New transaction before insert", zap.Any("Transaction", newTransaction))
 
 	err = t.TxRepo.CreateTransaction(newTransaction)
 	if err != nil {
-		t.logger.Error("Error creating new sale transaction in DB", zap.Error(err), zap.String("TransactionId", transactionId))
+		logger.Error("Error creating new sale transaction in DB", zap.Error(err), zap.String("TransactionId", transactionId))
 		return nil, err
 	}
 
-	t.logger.Info("Successfully created new sale transaction in DB", zap.String("TransactionId", transactionId))
+	logger.Info("Successfully created new sale transaction in DB", zap.String("TransactionId", transactionId))
 
 	updatedTransaction := t.pollingService.Poll(newTransaction, "CHANGE")
 
@@ -65,7 +65,7 @@ func (t *TransactionServiceImpl) CreateSaleTransaction(dto *dto.TransactionDTO) 
 
 	err = copier.Copy(dto, updatedTransaction)
 	if err != nil {
-		t.logger.Error("Error copying final model to DTO", zap.Error(err))
+		logger.Error("Error copying final model to DTO", zap.Error(err))
 		return nil, err
 	}
 
@@ -89,9 +89,8 @@ func (t TransactionServiceImpl) createTransaction(dto *dto.TransactionDTO) (*dto
 	return nil, nil
 }
 
-func NewTransactionService(TxRepo *repository.TransactionRepository, logger *zap.Logger) TransactionService {
+func NewTransactionService(TxRepo repository.TransactionRepository) TransactionService {
 	return &TransactionServiceImpl{
-		TxRepo: *TxRepo,
-		logger: logger,
+		TxRepo: TxRepo,
 	}
 }

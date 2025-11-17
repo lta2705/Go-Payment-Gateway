@@ -2,16 +2,16 @@ package middleware
 
 import (
 	"fmt"
-	"github.com/lta2705/Go-Payment-Gateway/internal/model"
 	"github.com/lta2705/Go-Payment-Gateway/pkg/config"
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
-var logger *zap.Logger
-
 func SetupDatabase(cfg *config.DBConfig) *gorm.DB {
+
+	logger := CreateLogger()
+	defer logger.Sync()
 
 	dsn := fmt.Sprintf(
 		"host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
@@ -23,9 +23,9 @@ func SetupDatabase(cfg *config.DBConfig) *gorm.DB {
 		logger.Fatal("Failed to connect to database", zap.Error(err))
 	}
 
-	if err := db.AutoMigrate(&model.Transaction{}, &model.MerchantCredentials{}); err != nil {
-		logger.Fatal("Failed to auto-migrate database schema", zap.Error(err))
-	}
+	//if err := db.AutoMigrate(&model.Transaction{}, &model.MerchantCredentials{}); err != nil {
+	//	logger.Fatal("Failed to auto-migrate database schema", zap.Error(err))
+	//}
 
 	sqlDB, err := db.DB()
 	if err != nil {

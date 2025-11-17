@@ -5,8 +5,6 @@ import (
 	"go.uber.org/zap"
 )
 
-var logger *zap.Logger
-
 type MerchantCredentialsHandler struct {
 	merchantCredentialsService service.MerchantCredentialsService
 }
@@ -18,5 +16,10 @@ func NewMerchantCredentialsHandler(merchantCredentialsService service.MerchantCr
 }
 
 func (h *MerchantCredentialsHandler) Authenticate(apiKey string) *string {
+	logger, err := zap.NewProduction()
+	if err != nil {
+		panic(err)
+	}
+	defer logger.Sync()
 	return h.merchantCredentialsService.Authenticate(apiKey)
 }
