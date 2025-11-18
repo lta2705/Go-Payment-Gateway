@@ -24,7 +24,7 @@ type DBConfig struct {
 
 func LoadDBConfig() *DBConfig {
 	// Load .env file
-	err := godotenv.Load()
+	err := godotenv.Load("C:\\Users\\Alliex\\Desktop\\Thesis\\Go-Payment-Gateway\\.env")
 	if err != nil {
 		log.Println(".env file not found, using environment variables")
 	}

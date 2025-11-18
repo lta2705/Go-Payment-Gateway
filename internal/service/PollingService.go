@@ -52,7 +52,7 @@ func (p PollingServiceImpl) Poll(model *model.Transaction, t string) *model.Tran
 		if err != nil {
 			logger.Error("Error fetching transaction during polling", zap.Error(err))
 		}
-		if p.isUpdate(pendingTransaction, t) {
+		if p.isUpdated(pendingTransaction, t) {
 			logger.Info("Transaction status updated", zap.String("TransactionId", transactionId))
 			return pendingTransaction
 		}
@@ -62,7 +62,7 @@ func (p PollingServiceImpl) Poll(model *model.Transaction, t string) *model.Tran
 	return model
 }
 
-func (p PollingServiceImpl) isUpdate(model *model.Transaction, t string) bool {
+func (p PollingServiceImpl) isUpdated(model *model.Transaction, t string) bool {
 	updatedBy := strings.ToUpper(model.UpdatedBy)
 	status := strings.ToUpper(model.Status)
 	errorCode := model.ErrorCode

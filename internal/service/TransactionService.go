@@ -27,7 +27,7 @@ func (t *TransactionServiceImpl) CreateSaleTransaction(dto *dto.TransactionDTO) 
 	pcPosId := dto.PcPosId
 	transactionId := dto.TransactionId
 
-	transaction, err := t.TxRepo.FindByPcPosIdAndTransactionId(pcPosId, transactionId)
+	transaction, _ := t.TxRepo.FindByPcPosIdAndTransactionId(pcPosId, transactionId)
 
 	if transaction != nil {
 		logger.Info("Sale transaction already exists", zap.String("PcPosId", pcPosId), zap.String("TransactionId", transactionId))
@@ -41,7 +41,10 @@ func (t *TransactionServiceImpl) CreateSaleTransaction(dto *dto.TransactionDTO) 
 	logger.Info("Creating new sale transaction", zap.String("PcPosId", pcPosId), zap.String("TransactionId", transactionId))
 
 	newTransaction := &model.Transaction{}
-	err = copier.Copy(newTransaction, dto)
+
+	newTransaction.UpdatedBy = "SERVER"
+
+	err := copier.Copy(newTransaction, dto)
 	if err != nil {
 		logger.Error("Error copying transaction DTO to model", zap.Error(err))
 		return nil, err
@@ -49,10 +52,10 @@ func (t *TransactionServiceImpl) CreateSaleTransaction(dto *dto.TransactionDTO) 
 
 	logger.Info("New transaction before insert", zap.Any("Transaction", newTransaction))
 
-	err = t.TxRepo.CreateTransaction(newTransaction)
-	if err != nil {
-		logger.Error("Error creating new sale transaction in DB", zap.Error(err), zap.String("TransactionId", transactionId))
-		return nil, err
+	error := t.TxRepo.CreateTransaction(newTransaction)
+	if error != nil {
+		logger.Error("Error creating new sale transaction in DB", zap.Error(error), zap.String("TransactionId", transactionId))
+		return nil, error
 	}
 
 	logger.Info("Successfully created new sale transaction in DB", zap.String("TransactionId", transactionId))
@@ -91,6 +94,7 @@ func (t TransactionServiceImpl) createTransaction(dto *dto.TransactionDTO) (*dto
 
 func NewTransactionService(TxRepo repository.TransactionRepository) TransactionService {
 	return &TransactionServiceImpl{
-		TxRepo: TxRepo,
+		TxRepo:         TxRepo,
+		pollingService: NewPollingService(TxRepo),
 	}
 }

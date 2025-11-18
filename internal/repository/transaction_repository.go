@@ -30,15 +30,27 @@ func (tri *TransactionRepositoryImpl) GetDB() *gorm.DB {
 	return tri.db
 }
 
-func (tri *TransactionRepositoryImpl) FindByTransactionId(id string) (*model.Transaction, error) {
-	var transaction model.Transaction
-	err := tri.db.Where("transaction_id = ?", id).First(&transaction).Error
-	return &transaction, err
+func (tri *TransactionRepositoryImpl) FindByTransactionId(transactionId string) (*model.Transaction, error) {
+	var tx model.Transaction
+	err := tri.db.Where(
+		"transaction_id = ?",
+		transactionId,
+	).First(&tx).Error
+
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil // correct
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &tx, nil
 }
 
-func (r *TransactionRepositoryImpl) FindByPcPosIdAndTransactionId(pcPosId, transactionId string) (*model.Transaction, error) {
+func (tri *TransactionRepositoryImpl) FindByPcPosIdAndTransactionId(pcPosId, transactionId string) (*model.Transaction, error) {
 	var tx model.Transaction
-	err := r.db.Where(
+	err := tri.db.Where(
 		"pc_pos_id = ? AND transaction_id = ?",
 		pcPosId, transactionId,
 	).First(&tx).Error
