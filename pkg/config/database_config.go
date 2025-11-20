@@ -24,7 +24,7 @@ type DBConfig struct {
 
 func LoadDBConfig() *DBConfig {
 	// Load .env file
-	err := godotenv.Load()
+	err := godotenv.Load("C:\\Users\\Alliex\\Desktop\\Thesis\\Go-Payment-Gateway\\.env")
 	if err != nil {
 		log.Println(".env file not found, using environment variables")
 	}
@@ -33,8 +33,8 @@ func LoadDBConfig() *DBConfig {
 		DBHost:            getEnv("DB_HOST", "localhost"),
 		DBPort:            getEnv("DB_PORT", "5432"),
 		DBUser:            getEnv("DB_USER", "postgres"),
-		DBPassword:        getEnv("DB_PASSWORD", ""),
-		DBName:            getEnv("DB_NAME", "app_db"),
+		DBPassword:        getEnv("DB_PASSWORD", "postgres"),
+		DBName:            getEnv("DB_NAME", "payment_db"),
 		DBSSLMode:         getEnv("DB_SSLMODE", "disable"),
 		DBMaxConns:        getEnvAsInt("DB_MAX_OPEN_CONNS", 10),
 		DBIdleConn:        getEnvAsInt("DB_MAX_IDLE_CONNS", 5),

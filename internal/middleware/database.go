@@ -1,37 +1,41 @@
 package middleware
 
 import (
+	"fmt"
 	"github.com/lta2705/Go-Payment-Gateway/pkg/config"
+	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"log"
 )
 
 func SetupDatabase(cfg *config.DBConfig) *gorm.DB {
-	logger := SetupLogger()
-	//Create connection
-	dsn := "host=" + cfg.DBHost +
-		" user=" + cfg.DBUser +
-		" password=" + cfg.DBPassword +
-		" dbname=" + cfg.DBName +
-		" port=" + cfg.DBPort +
-		" sslmode=" + cfg.DBSSLMode
+
+	logger := CreateLogger()
+	defer logger.Sync()
+
+	dsn := fmt.Sprintf(
+		"host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
+		cfg.DBHost, cfg.DBUser, cfg.DBPassword, cfg.DBName, cfg.DBPort, cfg.DBSSLMode,
+	)
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		log.Fatalf("Error connecting to database: %v", err)
+		logger.Fatal("Failed to connect to database", zap.Error(err))
 	}
+
+	//if err := db.AutoMigrate(&model.Transaction{}, &model.MerchantCredentials{}); err != nil {
+	//	logger.Fatal("Failed to auto-migrate database schema", zap.Error(err))
+	//}
 
 	sqlDB, err := db.DB()
 	if err != nil {
-		log.Fatalf("Error getting database instance: %v", err)
+		logger.Fatal("Failed to get sql.DB instance", zap.Error(err))
 	}
 
-	// Set connection pool settings
 	sqlDB.SetMaxOpenConns(cfg.DBMaxConns)
 	sqlDB.SetMaxIdleConns(cfg.DBIdleConn)
 	sqlDB.SetConnMaxLifetime(cfg.DBConnMaxLifetime)
 
-	logger.Info("Database connection established")
+	logger.Info("Database connection established successfully")
 	return db
 }
