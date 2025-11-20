@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"fmt"
+	"github.com/bytedance/gopkg/util/logger"
 	"github.com/lta2705/Go-Payment-Gateway/pkg/config"
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
@@ -9,9 +10,6 @@ import (
 )
 
 func SetupDatabase(cfg *config.DBConfig) *gorm.DB {
-
-	logger := CreateLogger()
-	defer logger.Sync()
 
 	dsn := fmt.Sprintf(
 		"host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",

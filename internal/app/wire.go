@@ -20,16 +20,20 @@ var repositorySet = wire.NewSet(
 
 var serviceSet = wire.NewSet(
 	service.NewTransactionService,
+	service.NewPollingService,
 )
 
 var handlerSet = wire.NewSet(
 	handler.NewTransactionHandler,
 )
 
+var loggerSet = wire.NewSet(middleware.NewLogger)
+
 func InitializeApp() (*gin.Engine, error) {
 	wire.Build(
 		config.LoadDBConfig,
 		middleware.SetupDatabase,
+		loggerSet,
 		repositorySet,
 		serviceSet,
 		handlerSet,

@@ -23,8 +23,12 @@ func InitializeApp() (*gin.Engine, error) {
 	dbConfig := config.LoadDBConfig()
 	db := middleware.SetupDatabase(dbConfig)
 	transactionRepository := repository.NewTransactionRepository(db)
-	transactionService := service.NewTransactionService(transactionRepository)
-	transactionHandlerImpl := handler.NewTransactionHandler(transactionService)
+	logger, err := middleware.NewLogger()
+	if err != nil {
+		return nil, err
+	}
+	transactionService := service.NewTransactionService(transactionRepository, logger)
+	transactionHandlerImpl := handler.NewTransactionHandler(transactionService, logger)
 	engine := routes.NewRouter(transactionHandlerImpl)
 	return engine, nil
 }
@@ -33,6 +37,8 @@ func InitializeApp() (*gin.Engine, error) {
 
 var repositorySet = wire.NewSet(repository.NewTransactionRepository)
 
-var serviceSet = wire.NewSet(service.NewTransactionService)
+var serviceSet = wire.NewSet(service.NewTransactionService, service.NewPollingService)
 
 var handlerSet = wire.NewSet(handler.NewTransactionHandler)
+
+var loggerSet = wire.NewSet(middleware.NewLogger)

@@ -1,17 +1,14 @@
 package main
 
 import (
+	"github.com/bytedance/gopkg/util/logger"
 	"github.com/lta2705/Go-Payment-Gateway/internal/app"
-	"github.com/lta2705/Go-Payment-Gateway/internal/middleware"
 	"go.uber.org/zap"
 	"os"
 )
 
 func main() {
 	// Set up logger
-	logger := middleware.CreateLogger()
-	defer logger.Sync()
-
 	// Initialize the app
 	app, err := app.InitializeApp()
 	if err != nil {

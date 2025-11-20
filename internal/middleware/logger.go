@@ -32,3 +32,8 @@ func CreateLogger() *zap.Logger {
 
 	return zap.Must(config.Build())
 }
+
+func NewLogger() (*zap.Logger, error) {
+	logger := CreateLogger() // init Zap
+	return logger, nil
+}
