@@ -75,9 +75,9 @@ const (
 const (
 	TxTypeSale        = "SALE"
 	TxTypeVoid        = "VOID"
-	TxTypeQr          = "QR"
+	TxTypeQR          = "QR"
 	TxTypeInstallment = "INSTALLMENT"
-	TxTypeQrRefund    = "QR_REFUND"
+	TxTypeQRRefund    = "QR_REFUND"
 	TxTypeCheckStatus = "CHECK_STATUS"
 	TxTypeCancel      = "CANCEL"
 )

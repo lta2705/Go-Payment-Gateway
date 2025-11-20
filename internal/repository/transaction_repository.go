@@ -10,7 +10,7 @@ type TransactionRepository interface {
 	CreateTransaction(tx *model.Transaction) error
 	UpdateTransaction(tx *model.Transaction) error
 	GetDB() *gorm.DB
-	FindByTransactionId(id string) (*model.Transaction, error)
+	FindByTransactionId(transactionId string) (*model.Transaction, error)
 	FindByPcPosIdAndTransactionId(transactionId, pcPosId string) (*model.Transaction, error)
 }
 

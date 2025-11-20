@@ -1,12 +1,14 @@
 package handler
 
 import (
+	"net/http"
+
 	"github.com/gin-gonic/gin"
+	"github.com/lta2705/Go-Payment-Gateway/internal/constant"
 	"github.com/lta2705/Go-Payment-Gateway/internal/dto"
 	"github.com/lta2705/Go-Payment-Gateway/internal/middleware"
 	"github.com/lta2705/Go-Payment-Gateway/internal/service"
 	"go.uber.org/zap"
-	"net/http"
 )
 
 type TransactionHandler interface {
@@ -34,18 +36,20 @@ func (s *TransactionHandlerImpl) CreateTransaction(c *gin.Context) {
 	}
 
 	switch transactionDto.TransactionType {
-	case "SALE":
+	case constant.TxTypeSale:
 		logger.Info("Processing SALE transaction")
-		s.transactionService.CreateSaleTransaction(&transactionDto)
-	case "VOID":
+		go s.transactionService.CreateSaleTransaction(&transactionDto)
+	case constant.TxTypeVoid:
 		logger.Info("Processing VOID transaction")
-		s.transactionService.CreateVoidTransaction(&transactionDto)
-	case "REFUND":
+		go s.transactionService.CreateVoidTransaction(&transactionDto)
+	case constant.TxTypeQRRefund:
 		logger.Info("Processing REFUND transaction")
-		s.transactionService.CreateRefundTransaction(&transactionDto)
-	case "QR":
+		go s.transactionService.CreateRefundTransaction(&transactionDto)
+	case constant.TxTypeQR:
 		logger.Info("Processing QR transaction")
-		s.transactionService.CreateQRTransaction(&transactionDto)
+		go s.transactionService.CreateQRTransaction(&transactionDto)
+	case constant.TxTypeCheckStatus:
+		g	
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Unsupported transaction type"})
