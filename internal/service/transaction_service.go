@@ -1,12 +1,14 @@
 package service
 
 import (
+	"github.com/google/uuid"
 	"github.com/jinzhu/copier"
 	"github.com/lta2705/Go-Payment-Gateway/internal/dto"
 	"github.com/lta2705/Go-Payment-Gateway/internal/middleware"
 	"github.com/lta2705/Go-Payment-Gateway/internal/model"
 	"github.com/lta2705/Go-Payment-Gateway/internal/repository"
 	"go.uber.org/zap"
+	"time"
 )
 
 type TransactionService interface {
@@ -42,15 +44,17 @@ func (t *TransactionServiceImpl) CreateSaleTransaction(dto *dto.TransactionDTO) 
 
 	newTransaction := &model.Transaction{}
 
-	newTransaction.UpdatedBy = "SERVER"
-
 	err := copier.Copy(newTransaction, dto)
 	if err != nil {
 		logger.Error("Error copying transaction DTO to model", zap.Error(err))
 		return nil, err
 	}
 
-	logger.Info("New transaction before insert", zap.Any("Transaction", newTransaction))
+	newTransaction.UpdatedBy = "SERVER"
+	newTransaction.ID = uuid.New()
+	newTransaction.CreatedAt = time.Now()
+
+	logger.Info("New transaction before insert:", zap.Any("Transaction", newTransaction))
 
 	error := t.TxRepo.CreateTransaction(newTransaction)
 	if error != nil {
