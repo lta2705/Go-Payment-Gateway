@@ -27,8 +27,13 @@ func InitializeApp() (*gin.Engine, error) {
 	if err != nil {
 		return nil, err
 	}
-	transactionService := service.NewTransactionService(transactionRepository, logger)
-	transactionHandlerImpl := handler.NewTransactionHandler(transactionService, logger)
+	pollingService := service.NewPollingService(transactionRepository, logger)
+	cardService := service.NewCardService(transactionRepository, logger, pollingService)
+	qrService := service.NewQRService(transactionRepository, logger, pollingService)
+	voidService := service.NewVoidService(transactionRepository, logger, pollingService)
+	refundService := service.NewRefundService(transactionRepository, logger, pollingService)
+	checkStatusService := service.NewCheckStatusService(transactionRepository, logger)
+	transactionHandlerImpl := handler.NewTransactionHandler(cardService, qrService, voidService, refundService, checkStatusService, logger)
 	engine := routes.NewRouter(transactionHandlerImpl)
 	return engine, nil
 }
@@ -37,7 +42,7 @@ func InitializeApp() (*gin.Engine, error) {
 
 var repositorySet = wire.NewSet(repository.NewTransactionRepository)
 
-var serviceSet = wire.NewSet(service.NewTransactionService, service.NewPollingService)
+var serviceSet = wire.NewSet(service.NewCardService, service.NewQRService, service.NewVoidService, service.NewRefundService, service.NewCheckStatusService, service.NewPollingService)
 
 var handlerSet = wire.NewSet(handler.NewTransactionHandler)
 

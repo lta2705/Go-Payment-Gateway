@@ -19,7 +19,11 @@ var repositorySet = wire.NewSet(
 )
 
 var serviceSet = wire.NewSet(
-	service.NewTransactionService,
+	service.NewCardService,
+	service.NewQRService,
+	service.NewVoidService,
+	service.NewRefundService,
+	service.NewCheckStatusService,
 	service.NewPollingService,
 )
 
