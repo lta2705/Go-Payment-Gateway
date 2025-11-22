@@ -15,11 +15,10 @@ type CardService interface {
 }
 
 type CardServiceImpl struct {
-	txRepo repository.TransactionRepository
-	logger *zap.Logger
+	txRepo         repository.TransactionRepository
+	logger         *zap.Logger
 	pollingService PollingService
 }
-
 
 func (c *CardServiceImpl) CreateCardTransaction(dto *dto.TransactionDTO) (*dto.TransactionDTO, error) {
 	defer c.logger.Sync()
@@ -66,11 +65,7 @@ func (c *CardServiceImpl) CreateCardTransaction(dto *dto.TransactionDTO) (*dto.T
 	c.logger.Info("Successfully created new sale transaction in DB", zap.Any("Payload", &transaction))
 
 	updatedTransaction := c.pollingService.Poll(newTransaction, "CHANGE")
-
-	updatedTransaction.ErrorCode = constant.ErrCodeNoErr
-	updatedTransaction.ErrorDetail = constant.ErrDetailCode0
-	updatedTransaction.Status = constant.TxStatusSuccess
-
+	
 	err = copier.Copy(dto, updatedTransaction)
 	if err != nil {
 		c.logger.Error("Error copying final model to DTO", zap.Error(err))

@@ -2,6 +2,7 @@ package service
 
 import (
 	"github.com/joho/godotenv"
+	"github.com/lta2705/Go-Payment-Gateway/internal/constant"
 	_ "github.com/lta2705/Go-Payment-Gateway/internal/dto"
 	"github.com/lta2705/Go-Payment-Gateway/internal/model"
 	"github.com/lta2705/Go-Payment-Gateway/internal/repository"
@@ -36,7 +37,7 @@ func (p PollingServiceImpl) getTimeout() int {
 	return timeout
 }
 
-func (p PollingServiceImpl) Poll(model *model.Transaction, t string) *model.Transaction {
+func (p PollingServiceImpl) Poll(model *model.Transaction, mode string) *model.Transaction {
 	startTime := time.Now()
 	timeout := time.Duration(p.getTimeout()) * time.Millisecond
 	transactionId := model.TransactionId
@@ -47,23 +48,31 @@ func (p PollingServiceImpl) Poll(model *model.Transaction, t string) *model.Tran
 		if err != nil {
 			p.logger.Error("Error fetching transaction during polling", zap.Error(err))
 		}
-		if p.isUpdated(pendingTransaction, t) {
+		if p.isUpdated(pendingTransaction, mode) {
 			p.logger.Info("Transaction status updated", zap.String("TransactionId", transactionId))
+			pendingTransaction.Status = constant.TxStatusSuccess
+			pendingTransaction.ErrorCode = constant.ErrCodeNoErr
+			pendingTransaction.ErrorDetail = constant.ErrDetailCode0
+
 			return pendingTransaction
 		}
 		time.Sleep(2 * time.Second) // Poll every 2 seconds
 	}
 
 	p.logger.Warn("Polling timeout reached without status update", zap.String("TransactionId", transactionId))
+
+	model.ErrorCode = constant.ErrCodeTrmNotResponse
+	model.ErrorDetail = constant.ErrDetailCode11
+	model.Status = constant.TxStatusFailed
 	return model
 }
 
-func (p PollingServiceImpl) isUpdated(model *model.Transaction, t string) bool {
+func (p PollingServiceImpl) isUpdated(model *model.Transaction, mode string) bool {
 	updatedBy := strings.ToUpper(model.UpdatedBy)
 	status := strings.ToUpper(model.Status)
 	errorCode := model.ErrorCode
 
-	switch t {
+	switch mode {
 	case "CHANGE":
 		return updatedBy != "SERVER"
 

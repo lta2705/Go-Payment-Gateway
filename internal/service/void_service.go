@@ -37,7 +37,7 @@ func (t VoidServiceImpl) CreateVoidTransaction(dto *dto.TransactionDTO) (*dto.Tr
 		dto.ErrorDetail = constant.ErrDetailCode3
 		return dto, err
 	}
-	if voidTransaction != nil {
+	if voidTransaction == nil {
 		t.logger.Warn("Original transaction not found for void", zap.String("PcPosId", dto.PcPosId), zap.String("OrgPcPosTxnId", dto.OrgPcPosTxnId))
 		dto.Status = constant.TxStatusFailed
 		dto.ErrorCode = constant.ErrCodeNotFoundOriginTx
@@ -72,10 +72,6 @@ func (t VoidServiceImpl) CreateVoidTransaction(dto *dto.TransactionDTO) (*dto.Tr
 	}
 
 	updatedTransaction := t.pollingService.Poll(voidTransaction, "VOID")
-
-	updatedTransaction.ErrorCode = constant.ErrCodeNoErr
-	updatedTransaction.ErrorDetail = constant.ErrDetailCode0
-	updatedTransaction.Status = constant.TxStatusSuccess
 
 	err = copier.Copy(dto, updatedTransaction)
 	if err != nil {

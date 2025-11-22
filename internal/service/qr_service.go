@@ -66,10 +66,6 @@ func (t *QRServiceImpl) CreateQRTransaction(dto *dto.TransactionDTO) (*dto.Trans
 
 	updatedTransaction := t.pollingService.Poll(newTransaction, "CHANGE")
 
-	updatedTransaction.ErrorCode = constant.ErrCodeNoErr
-	updatedTransaction.ErrorDetail = constant.ErrDetailCode0
-	updatedTransaction.Status = constant.TxStatusSuccess
-
 	err = copier.Copy(dto, updatedTransaction)
 	if err != nil {
 		t.logger.Error("Error copying final model to DTO", zap.Error(err))
