@@ -4,7 +4,6 @@
 package app
 
 import (
-	"github.com/gin-gonic/gin"
 	"github.com/google/wire"
 	"github.com/lta2705/Go-Payment-Gateway/internal/handler"
 	"github.com/lta2705/Go-Payment-Gateway/internal/middleware"
@@ -31,17 +30,19 @@ var handlerSet = wire.NewSet(
 	handler.NewTransactionHandler,
 )
 
-var loggerSet = wire.NewSet(middleware.NewLogger)
-
-func InitializeApp() (*gin.Engine, error) {
+func InitializeApp() (*App, error) {
 	wire.Build(
 		config.LoadDBConfig,
+		config.LoadKafkaProducerConfig,
+		config.LoadKafkaConsumerConfig,
 		middleware.SetupDatabase,
-		loggerSet,
+		middleware.CreateKafkaConsumer,
+		middleware.CreateKafkaProducer,
 		repositorySet,
 		serviceSet,
 		handlerSet,
 		routes.NewRouter,
+		NewApp,
 	)
 	return nil, nil
 }

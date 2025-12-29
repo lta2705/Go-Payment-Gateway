@@ -88,8 +88,7 @@ func (s *TransactionHandlerImpl) CreateTransaction(c *gin.Context) {
 
 	//Return value from service
 	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    transaction,
+		"data": transaction,
 	})
 }
 

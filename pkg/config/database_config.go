@@ -2,9 +2,8 @@ package config
 
 import (
 	"github.com/joho/godotenv"
+	"github.com/lta2705/Go-Payment-Gateway/utils"
 	"log"
-	"os"
-	"strconv"
 	"time"
 )
 
@@ -30,29 +29,14 @@ func LoadDBConfig() *DBConfig {
 	}
 
 	return &DBConfig{
-		DBHost:            getEnv("DB_HOST", "localhost"),
-		DBPort:            getEnv("DB_PORT", "5432"),
-		DBUser:            getEnv("DB_USER", "postgres"),
-		DBPassword:        getEnv("DB_PASSWORD", "postgres"),
-		DBName:            getEnv("DB_NAME", "payment_db"),
-		DBSSLMode:         getEnv("DB_SSLMODE", "disable"),
-		DBMaxConns:        getEnvAsInt("DB_MAX_OPEN_CONNS", 10),
-		DBIdleConn:        getEnvAsInt("DB_MAX_IDLE_CONNS", 5),
-		DBConnMaxLifetime: time.Duration(getEnvAsInt("DB_CONN_MAX_LIFETIME", 300)) * time.Second,
+		DBHost:            utils.String("DB_HOST", "localhost"),
+		DBPort:            utils.String("DB_PORT", "5432"),
+		DBUser:            utils.String("DB_USER", "postgres"),
+		DBPassword:        utils.String("DB_PASSWORD", "postgres"),
+		DBName:            utils.String("DB_NAME", "payment_db"),
+		DBSSLMode:         utils.String("DB_SSLMODE", "disable"),
+		DBMaxConns:        utils.Int("DB_MAX_OPEN_CONNS", 10),
+		DBIdleConn:        utils.Int("DB_MAX_IDLE_CONNS", 5),
+		DBConnMaxLifetime: time.Duration(utils.Int("DB_CONN_MAX_LIFETIME", 300)) * time.Second,
 	}
-}
-
-func getEnv(key, defaultVal string) string {
-	if val, ok := os.LookupEnv(key); ok {
-		return val
-	}
-	return defaultVal
-}
-
-func getEnvAsInt(key string, defaultVal int) int {
-	valStr := getEnv(key, "")
-	if val, err := strconv.Atoi(valStr); err == nil {
-		return val
-	}
-	return defaultVal
 }

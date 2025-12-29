@@ -1,6 +1,7 @@
 package service
 
 import (
+	"github.com/bytedance/gopkg/util/logger"
 	"github.com/google/uuid"
 	"github.com/jinzhu/copier"
 	"github.com/lta2705/Go-Payment-Gateway/internal/constant"
@@ -17,7 +18,6 @@ type VoidService interface {
 type VoidServiceImpl struct {
 	TxRepo         repository.TransactionRepository
 	pollingService PollingService
-	logger         *zap.Logger
 }
 
 func (t VoidServiceImpl) CreateVoidTransaction(dto *dto.TransactionDTO) (*dto.TransactionDTO, error) {
@@ -38,19 +38,19 @@ func (t VoidServiceImpl) CreateVoidTransaction(dto *dto.TransactionDTO) (*dto.Tr
 		return dto, err
 	}
 	if voidTransaction == nil {
-		t.logger.Warn("Original transaction not found for void", zap.String("PcPosId", dto.PcPosId), zap.String("OrgPcPosTxnId", dto.OrgPcPosTxnId))
+		logger.Warn("Original transaction not found for void", zap.String("PcPosId", dto.PcPosId), zap.String("OrgPcPosTxnId", dto.OrgPcPosTxnId))
 		dto.Status = constant.TxStatusFailed
 		dto.ErrorCode = constant.ErrCodeNotFoundOriginTx
 		dto.ErrorDetail = constant.ErrDetailCode7
 		return dto, nil
 	} else if voidTransaction.Status != constant.TxStatusSuccess {
-		t.logger.Warn("Original transaction not successful for void", zap.String("PcPosId", dto.PcPosId), zap.String("OrgPcPosTxnId", dto.OrgPcPosTxnId))
+		logger.Warn("Original transaction not successful for void", zap.String("PcPosId", dto.PcPosId), zap.String("OrgPcPosTxnId", dto.OrgPcPosTxnId))
 		dto.Status = constant.TxStatusFailed
 		dto.ErrorCode = constant.ErrCodeTxNotSuccess
 		dto.ErrorDetail = constant.ErrDetailCode13
 		return dto, nil
 	} else if voidTransaction.Status == constant.TxStatusVoided {
-		t.logger.Warn("Original transaction already voided", zap.String("PcPosId", dto.PcPosId), zap.String("OrgPcPosTxnId", dto.OrgPcPosTxnId))
+		logger.Warn("Original transaction already voided", zap.String("PcPosId", dto.PcPosId), zap.String("OrgPcPosTxnId", dto.OrgPcPosTxnId))
 		dto.Status = constant.TxStatusFailed
 		dto.ErrorCode = constant.ErrCodeTxVoided
 		dto.ErrorDetail = constant.ErrDetailCode14
@@ -81,10 +81,9 @@ func (t VoidServiceImpl) CreateVoidTransaction(dto *dto.TransactionDTO) (*dto.Tr
 	return dto, nil
 }
 
-func NewVoidService(txRepo repository.TransactionRepository, logger *zap.Logger, pollingService PollingService) VoidService {
+func NewVoidService(txRepo repository.TransactionRepository, pollingService PollingService) VoidService {
 	return &VoidServiceImpl{
 		TxRepo:         txRepo,
-		logger:         logger,
-		pollingService: NewPollingService(txRepo, logger),
+		pollingService: NewPollingService(txRepo),
 	}
 }

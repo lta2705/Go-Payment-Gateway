@@ -6,7 +6,6 @@ import (
 	"github.com/lta2705/Go-Payment-Gateway/internal/dto"
 	"github.com/lta2705/Go-Payment-Gateway/internal/model"
 	"github.com/lta2705/Go-Payment-Gateway/internal/repository"
-	"go.uber.org/zap"
 )
 
 type RefundService interface {
@@ -16,7 +15,6 @@ type RefundService interface {
 type RefundServiceImpl struct {
 	TxRepo         repository.TransactionRepository
 	pollingService PollingService
-	logger         *zap.Logger
 }
 
 func (t *RefundServiceImpl) CreateRefundTransaction(dto *dto.TransactionDTO) (*dto.TransactionDTO, error) {
@@ -35,11 +33,9 @@ func (t *RefundServiceImpl) CreateRefundTransaction(dto *dto.TransactionDTO) (*d
 	return nil, nil
 }
 
-func NewRefundService(txRepo repository.TransactionRepository, logger *zap.Logger, pollingService PollingService) RefundService {
+func NewRefundService(txRepo repository.TransactionRepository, pollingService PollingService) RefundService {
 	return &RefundServiceImpl{
 		TxRepo:         txRepo,
-		logger:         logger,
-		pollingService: NewPollingService(txRepo, logger),
+		pollingService: NewPollingService(txRepo),
 	}
 }
-

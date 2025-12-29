@@ -7,7 +7,6 @@
 package app
 
 import (
-	"github.com/gin-gonic/gin"
 	"github.com/google/wire"
 	"github.com/lta2705/Go-Payment-Gateway/internal/handler"
 	"github.com/lta2705/Go-Payment-Gateway/internal/middleware"
@@ -19,23 +18,28 @@ import (
 
 // Injectors from wire.go:
 
-func InitializeApp() (*gin.Engine, error) {
+func InitializeApp() (*App, error) {
 	dbConfig := config.LoadDBConfig()
 	db := middleware.SetupDatabase(dbConfig)
 	transactionRepository := repository.NewTransactionRepository(db)
+	pollingService := service.NewPollingService(transactionRepository)
+	kafkaProducerConfig := config.LoadKafkaProducerConfig()
+	writer := middleware.CreateKafkaProducer(kafkaProducerConfig)
+	cardService := service.NewCardService(transactionRepository, pollingService, writer)
+	qrService := service.NewQRService(transactionRepository, pollingService)
+	voidService := service.NewVoidService(transactionRepository, pollingService)
+	refundService := service.NewRefundService(transactionRepository, pollingService)
 	logger, err := middleware.NewLogger()
 	if err != nil {
 		return nil, err
 	}
-	pollingService := service.NewPollingService(transactionRepository, logger)
-	cardService := service.NewCardService(transactionRepository, logger, pollingService)
-	qrService := service.NewQRService(transactionRepository, logger, pollingService)
-	voidService := service.NewVoidService(transactionRepository, logger, pollingService)
-	refundService := service.NewRefundService(transactionRepository, logger, pollingService)
 	checkStatusService := service.NewCheckStatusService(transactionRepository, logger)
 	transactionHandlerImpl := handler.NewTransactionHandler(cardService, qrService, voidService, refundService, checkStatusService, logger)
 	engine := routes.NewRouter(transactionHandlerImpl)
-	return engine, nil
+	kafkaConsumerConfig := config.LoadKafkaConsumerConfig()
+	reader := middleware.CreateKafkaConsumer(kafkaConsumerConfig)
+	app := NewApp(engine, writer, reader)
+	return app, nil
 }
 
 // wire.go:
