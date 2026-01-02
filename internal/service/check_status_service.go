@@ -1,12 +1,12 @@
 package service
 
 import (
+	"github.com/bytedance/gopkg/util/logger"
 	"github.com/jinzhu/copier"
 	"github.com/lta2705/Go-Payment-Gateway/internal/constant"
 	"github.com/lta2705/Go-Payment-Gateway/internal/dto"
 	"github.com/lta2705/Go-Payment-Gateway/internal/model"
 	"github.com/lta2705/Go-Payment-Gateway/internal/repository"
-	"go.uber.org/zap"
 )
 
 type CheckStatusService interface {
@@ -14,9 +14,8 @@ type CheckStatusService interface {
 }
 type CheckStatusServiceImpl struct {
 	TxRepo repository.TransactionRepository
-	logger *zap.Logger
 }
-	
+
 func (t CheckStatusServiceImpl) CheckTransactionStatus(dto *dto.TransactionDTO) (*dto.TransactionDTO, error) {
 	var transaction = &model.Transaction{}
 
@@ -33,6 +32,7 @@ func (t CheckStatusServiceImpl) CheckTransactionStatus(dto *dto.TransactionDTO) 
 		dto.ErrorCode = constant.ErrCodeTcpServerError
 		dto.ErrorDetail = constant.ErrDetailCode3
 		dto.Status = constant.TxStatusFailed
+		logger.Warn("Cannot find transaction with ID:", transaction.TransactionId)
 		return dto, err
 	}
 
@@ -41,13 +41,13 @@ func (t CheckStatusServiceImpl) CheckTransactionStatus(dto *dto.TransactionDTO) 
 	transaction.ErrorDetail = constant.ErrDetailCode0
 
 	_ = copier.Copy(dto, transaction)
+	logger.Info("Transaction found with ID:", transaction.TransactionId)
 
 	return dto, nil
 }
 
-func NewCheckStatusService(TxRepo repository.TransactionRepository, logger *zap.Logger) CheckStatusService {
+func NewCheckStatusService(TxRepo repository.TransactionRepository) CheckStatusService {
 	return &CheckStatusServiceImpl{
 		TxRepo: TxRepo,
-		logger: logger,
 	}
 }

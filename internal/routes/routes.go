@@ -5,7 +5,7 @@ import (
 	"github.com/lta2705/Go-Payment-Gateway/internal/handler"
 )
 
-func NewRouter(txHandler *handler.TransactionHandlerImpl) *gin.Engine {
+func NewRouter(txHandler handler.TransactionHandler) *gin.Engine {
 	r := gin.Default()
 
 	api := r.Group("/api")

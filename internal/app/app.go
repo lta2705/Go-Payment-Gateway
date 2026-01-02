@@ -2,19 +2,19 @@ package app
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/segmentio/kafka-go"
+	"github.com/lta2705/Go-Payment-Gateway/internal/functionality"
 )
 
 type App struct {
 	Router   *gin.Engine
-	Producer *kafka.Writer
-	Consumer *kafka.Reader
+	Producer functionality.ProducerService
+	Consumer functionality.ConsumerService
 }
 
-func NewApp(r *gin.Engine, p *kafka.Writer, c *kafka.Reader) *App {
+func NewApp(r *gin.Engine, producer functionality.ProducerService, consumer functionality.ConsumerService) *App {
 	return &App{
 		Router:   r,
-		Producer: p,
-		Consumer: c,
+		Producer: producer,
+		Consumer: consumer,
 	}
 }

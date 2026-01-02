@@ -6,15 +6,17 @@ import (
 )
 
 type MerchantCredentialsRepository interface {
-	FindMerchantIDByApiKey(merchantID string) (string, error)
+	FindMerchantIDByApiKey(apiKey string) (string, error)
 }
 type MerchantCredentialsRepositoryImpl struct {
 	db *gorm.DB
 }
 
-func (mcri *MerchantCredentialsRepositoryImpl) FindMerchantIDByApiKey(merchantID string) (string, error) {
-	var credentials model.MerchantCredentials
-	err := mcri.db.Where("merchant_id = ?", merchantID).First(&credentials).Error
+func (m *MerchantCredentialsRepositoryImpl) FindMerchantIDByApiKey(apiKey string) (string, error) {
+	var credentials model.MerchantCredential
+
+	err := m.db.Select("merchant_id").Where("api_key = ?", apiKey).First(&credentials).Error
+
 	if err != nil {
 		return "", err
 	}

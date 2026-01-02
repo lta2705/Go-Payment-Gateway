@@ -1,34 +1,44 @@
 package handler
 
 import (
-	"github.com/lta2705/Go-Payment-Gateway/internal/constant"
-	"net/http"
-
+	"github.com/bytedance/gopkg/util/logger"
 	"github.com/gin-gonic/gin"
+	"github.com/lta2705/Go-Payment-Gateway/internal/constant"
 	"github.com/lta2705/Go-Payment-Gateway/internal/dto"
 	"github.com/lta2705/Go-Payment-Gateway/internal/service"
-	"go.uber.org/zap"
+	"net/http"
 )
 
-type TransactionHandler interface {
-	CreateTransaction()
+type TransactionReqHandler interface {
+	CreateTransaction(gin *gin.Context)
 }
-type TransactionHandlerImpl struct {
+type TransactionReqHandlerImpl struct {
 	cardService        service.CardService
 	qrService          service.QRService
 	voidService        service.VoidService
 	refundService      service.RefundService
 	checkStatusService service.CheckStatusService
-	logger             *zap.Logger
+	credentialHandler  service.MerchantCredentialsService
 }
 
-func (s *TransactionHandlerImpl) CreateTransaction(c *gin.Context) {
+func (s *TransactionReqHandlerImpl) CreateTransaction(c *gin.Context) {
+
+	apiKey := c.GetHeader("X-API-KEY")
+	_, authenErr := s.credentialHandler.Authenticate(apiKey)
+	if authenErr != nil {
+		if authenErr.Error() == "invalid api key" {
+			c.JSON(401, gin.H{"error": "Unauthorized"})
+		} else {
+			c.JSON(500, gin.H{"error": "Internal Server Error"})
+		}
+		return
+	}
 
 	transactionDto := &dto.TransactionDTO{}
 
 	// Parse JSON
 	if err := c.ShouldBindJSON(transactionDto); err != nil {
-		s.logger.Error("Error parsing request", zap.Error(err))
+		logger.Error("Error parsing request", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
 		return
 	}
@@ -41,17 +51,17 @@ func (s *TransactionHandlerImpl) CreateTransaction(c *gin.Context) {
 	// Dispatch based on transactionType
 	switch transactionDto.TransactionType {
 	case constant.TxTypeSale:
-		s.logger.Info("Processing SALE transaction")
+		logger.Info("Processing SALE transaction")
 		transaction, err = s.cardService.CreateCardTransaction(transactionDto)
 
 	case constant.TxTypeVoid:
-		s.logger.Info("Processing VOID transaction")
-		s.logger.Info("original Transaction ID", zap.String("OrgPcPosTxnId", transactionDto.OrgPcPosTxnId))
+		logger.Info("Processing VOID transaction")
+		logger.Info("original Transaction ID with OrgPcPosTxnId", transactionDto.OrgPcPosTxnId)
 		if transactionDto.OrgPcPosTxnId == "" {
-			s.logger.Error("Original Transaction ID is required for VOID transactions")
+			logger.Error("Original Transaction ID is required for VOID transactions")
 			transactionDto.Status = constant.TxStatusFailed
-			transactionDto.ErrorCode = "17"
-			transactionDto.ErrorDetail = "Original Transaction ID not found"
+			transactionDto.ErrorCode = constant.ErrCodeNotFoundOriginTx
+			transactionDto.ErrorDetail = constant.ErrDetailCode7
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": "Original Transaction ID is required for VOID transactions",
 				"data":  transactionDto,
@@ -61,25 +71,25 @@ func (s *TransactionHandlerImpl) CreateTransaction(c *gin.Context) {
 		transaction, err = s.voidService.CreateVoidTransaction(transactionDto)
 
 	case constant.TxTypeQRRefund:
-		s.logger.Info("Processing REFUND transaction")
+		logger.Info("Processing REFUND transaction")
 		transaction, err = s.refundService.CreateRefundTransaction(transactionDto)
 
 	case constant.TxTypeQR:
-		s.logger.Info("Processing QR transaction")
+		logger.Info("Processing QR transaction")
 		transaction, err = s.qrService.CreateQRTransaction(transactionDto)
 
 	case constant.TxTypeCheckStatus:
-		s.logger.Info("Check Transaction Status")
+		logger.Info("Check Transaction Status")
 		transaction, err = s.checkStatusService.CheckTransactionStatus(transactionDto)
 
 	default:
-		s.logger.Error("Unsupported transaction type", zap.String("TransactionType", transactionDto.TransactionType))
+		logger.Error("Unsupported transaction type wiht TransactionType", transactionDto.TransactionType)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported transaction type"})
 		return
 	}
 
 	if err != nil {
-		s.logger.Error("Transaction failed", zap.Error(err))
+		logger.Error("Transaction failed", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": err.Error(),
 		})
@@ -92,13 +102,15 @@ func (s *TransactionHandlerImpl) CreateTransaction(c *gin.Context) {
 	})
 }
 
-func NewTransactionHandler(cardSvc service.CardService, qrSvc service.QRService, voidSvc service.VoidService, refundSvc service.RefundService, checkStatusSvc service.CheckStatusService, logger *zap.Logger) *TransactionHandlerImpl {
-	return &TransactionHandlerImpl{
+func NewTransactionHandler(cardSvc service.CardService, qrSvc service.QRService,
+	voidSvc service.VoidService, refundSvc service.RefundService,
+	checkStatusSvc service.CheckStatusService, credentialHandler service.MerchantCredentialsService) TransactionReqHandler {
+	return &TransactionReqHandlerImpl{
 		cardService:        cardSvc,
 		qrService:          qrSvc,
 		voidService:        voidSvc,
 		refundService:      refundSvc,
 		checkStatusService: checkStatusSvc,
-		logger:             logger,
+		credentialHandler:  credentialHandler,
 	}
 }

@@ -24,39 +24,71 @@ services:
       retries: 5
       start_period: 30s
 
-  kafka:
-    image: apache/kafka:4.1.1
-    container_name: payment-kafka
-    hostname: kafka
+  broker:
+    image: apache/kafka:3.7.0
+    container_name: broker
+    hostname: broker
     restart: unless-stopped
 
+    ports:
+      # Client bên ngoài Docker (localhost)
+      - "9092:9092"
+
     environment:
+      # ===== KRaft basic =====
       KAFKA_NODE_ID: 1
-      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_PROCESS_ROLES: broker,controller
 
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
-      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      # ===== Listener security =====
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: >
+        PLAINTEXT:PLAINTEXT,
+        PLAINTEXT_HOST:PLAINTEXT,
+        CONTROLLER:PLAINTEXT
 
-      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,PLAINTEXT_HOST://0.0.0.0:29092"
-      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9092"
+      # ===== Kafka lắng nghe bên trong container =====
+      KAFKA_LISTENERS: >
+        PLAINTEXT://0.0.0.0:29092,
+        PLAINTEXT_HOST://0.0.0.0:9092,
+        CONTROLLER://0.0.0.0:29093
 
-      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
-      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      # ===== Kafka advertise cho client =====
+      # Docker internal -> broker:29092
+      # External (local dev / prod edge) -> localhost:9092
+      KAFKA_ADVERTISED_LISTENERS: >
+        PLAINTEXT://broker:29092,
+        PLAINTEXT_HOST://localhost:9092
 
+      # ===== Inter broker & controller =====
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@broker:29093
+
+      # ===== System topics (single broker) =====
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
 
-    ports:
-      - "9092:9092"
+      # ===== Storage =====
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+
+      # ===== Cluster ID =====
+      # Chỉ giữ nếu volume là mới. Nếu lỗi -> docker compose down -v
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
 
     volumes:
       - kafka_data:/var/lib/kafka/data
 
     healthcheck:
-      test: ["CMD-SHELL", "kafka-broker-api-versions.sh --bootstrap-server localhost:9092"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
+      # PHẢI dùng listener nội bộ
+      test:
+        [
+          "CMD-SHELL",
+          "opt/kafka/bin/kafka-topics.sh --bootstrap-server broker:29092 --list || exit 1"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
       start_period: 60s
 
   akhq:
@@ -65,7 +97,7 @@ services:
     restart: unless-stopped
 
     depends_on:
-      kafka:
+      broker:
         condition: service_healthy
 
     ports:
@@ -75,9 +107,9 @@ services:
       AKHQ_CONFIGURATION: |
         akhq:
           connections:
-            docker-kafka:
+            kafka-docker:
               properties:
-                bootstrap.servers: "kafka:9092"
+                bootstrap.servers: "broker:29092"
 
 volumes:
   postgres_data:

@@ -31,7 +31,7 @@ func LoadKafkaProducerConfig() *KafkaProducerConfig {
 
 	return &KafkaProducerConfig{
 		BootstrapServers:  []string{utils.String("KAFKA_BROKER", "localhost:9092")},
-		ProducerTopic:     utils.String("KAFKA_PRODUCER_TOPIC", "producer_topic"),
+		ProducerTopic:     utils.String("KAFKA_PRODUCER_TOPIC", "transaction_create"),
 		Acks:              utils.String("KAFKA_PRODUCER_ACKS", "all"),
 		Retries:           utils.Int("KAFKA_PRODUCER_RETRIES", 5),
 		MaxInFlight:       utils.Int("KAFKA_PRODUCER_MAX_IN_FLIGHT", 5),

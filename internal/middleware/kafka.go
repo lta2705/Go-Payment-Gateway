@@ -54,7 +54,7 @@ func CreateKafkaConsumer(cfg *config.KafkaConsumerConfig) *kafka.Reader {
 		// Isolation
 		IsolationLevel: kafka.ReadCommitted,
 
-		Logger:      kafka.LoggerFunc(log.Printf),
+		Logger:      nil,
 		ErrorLogger: kafka.LoggerFunc(log.Printf),
 	})
 }

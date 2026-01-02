@@ -14,4 +14,6 @@ type TransactionDTO struct {
 	ErrorCode         string  `json:"error_code"`
 	ErrorDetail       string  `json:"error_detail"`
 	PcPosOptionalInfo string  `json:"pc_pos_optional_info"`
+	UpdatedBy         string  `json:"updated_by"`
+	TerminalId        string  `json:"terminal_id"`
 }

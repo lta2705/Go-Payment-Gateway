@@ -1,36 +1,39 @@
 package service
 
 import (
+	"errors"
+	"github.com/bytedance/gopkg/util/logger"
 	"github.com/lta2705/Go-Payment-Gateway/internal/repository"
 	"go.uber.org/zap"
 )
 
 type MerchantCredentialsService interface {
-	Authenticate(apiKey string) *string
+	Authenticate(apiKey string) (string, error)
 }
 
 type MerchantCredentialsServiceImpl struct {
 	TxCreRepo repository.MerchantCredentialsRepository
-	logger    *zap.Logger
 }
 
-func (t MerchantCredentialsServiceImpl) Authenticate(apiKey string) *string {
+func (t MerchantCredentialsServiceImpl) Authenticate(apiKey string) (string, error) {
 	merchantID, err := t.TxCreRepo.FindMerchantIDByApiKey(apiKey)
+
 	if err != nil {
-		t.logger.Error("Error authenticating merchant", zap.Error(err))
-	}
-	if merchantID != "" {
-		t.logger.Info("Successfully authenticated merchant", zap.String("MerchantID", merchantID))
-		return &merchantID
+		logger.Error("Database error during merchant authentication")
+		return "", err
 	}
 
-	t.logger.Warn("Cannot find the exist merchantID by:", zap.String("apiKey", apiKey))
-	return nil
+	if merchantID == "" {
+		logger.Warn("Authentication failed: API Key not found", zap.String("apiKey", apiKey))
+		return "", errors.New("invalid api key")
+	}
+
+	logger.Info("Successfully authenticated merchant", zap.String("MerchantID", merchantID))
+	return merchantID, nil
 }
 
-func NewMerchantCredentialsService(txCreRepo repository.MerchantCredentialsRepository, logger *zap.Logger) MerchantCredentialsService {
+func NewMerchantCredentialsService(txCreRepo repository.MerchantCredentialsRepository) MerchantCredentialsService {
 	return &MerchantCredentialsServiceImpl{
 		TxCreRepo: txCreRepo,
-		logger:    logger,
 	}
 }
