@@ -19,7 +19,7 @@ type QRService interface {
 type QRServiceImpl struct {
 	txRepo         repository.TransactionRepository
 	pollingService PollingService
-	sender         *worker.KafkaProducerWorker
+	sender         worker.KafkaProducerWorker
 }
 
 func (q *QRServiceImpl) CreateQRTransaction(dto *dto.TransactionDTO) (*dto.TransactionDTO, error) {
@@ -85,7 +85,7 @@ func (q *QRServiceImpl) CreateQRTransaction(dto *dto.TransactionDTO) (*dto.Trans
 	return dto, nil
 }
 
-func NewQRService(txRepo repository.TransactionRepository, pollingService PollingService, sender *worker.KafkaProducerWorker) QRService {
+func NewQRService(txRepo repository.TransactionRepository, pollingService PollingService, sender worker.KafkaProducerWorker) QRService {
 	return &QRServiceImpl{
 		txRepo:         txRepo,
 		pollingService: pollingService,

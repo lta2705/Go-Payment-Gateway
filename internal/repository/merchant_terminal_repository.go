@@ -25,3 +25,9 @@ func (m *MerchantTerminalRepositoryImpl) FindTerminalIdByPcPosId(pcPosId string)
 
 	return terminal.TerminalId, nil
 }
+
+func NewMerchantTerminalRepository(db *gorm.DB) MerchantTerminalRepository {
+	return &MerchantTerminalRepositoryImpl{
+		db: db,
+	}
+}

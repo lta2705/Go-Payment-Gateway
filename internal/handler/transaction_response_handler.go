@@ -24,19 +24,24 @@ func NewTransactionRespHandler(repo repository.TransactionRepository) Transactio
 }
 
 func (h *TransactionRespHandlerImpl) HandleTransaction(payload []byte) error {
+	logger.Info("Handling the transaction response:", string(payload))
 	jsonParsed, err := gabs.ParseJSON(payload)
 	if err != nil {
 		return err
 	}
 
-	msgType, ok := jsonParsed.Path("msgType").Data().(string)
+	logger.Info("Parsed JSON:", jsonParsed.String())
+
+	msgType, ok := jsonParsed.Path("MsgType").Data().(string)
 	if !ok {
 		return nil
 	}
 
+	logger.Info("Message type:", msgType)
+
 	switch msgType {
 	case constant.MsgTypeTxReq:
-		return h.updateTransaction(payload, func(tx *dto.TransactionDTO) {
+		return h.updateTransaction(payload, func(tx *dto.TerminalTransactionDTO) {
 			tx.UpdatedBy = "TCP_SERVER"
 			tx.ErrorCode = constant.ErrCodeTrmNotResponse
 			tx.ErrorDetail = constant.ErrDetailCode11
@@ -44,7 +49,7 @@ func (h *TransactionRespHandlerImpl) HandleTransaction(payload []byte) error {
 
 		})
 	case constant.MsgTypeTxRes:
-		return h.updateTransaction(payload, func(tx *dto.TransactionDTO) {
+		return h.updateTransaction(payload, func(tx *dto.TerminalTransactionDTO) {
 			tx.UpdatedBy = "TERMINAL"
 			tx.ErrorCode = constant.ErrCodeNoErr
 			tx.ErrorDetail = constant.ErrDetailCode0
@@ -54,14 +59,14 @@ func (h *TransactionRespHandlerImpl) HandleTransaction(payload []byte) error {
 	return nil
 }
 
-// Giữ hàm updateTransaction nội bộ trong handler
-func (h *TransactionRespHandlerImpl) updateTransaction(payload []byte, updateFn func(*dto.TransactionDTO)) error {
-	var txDto dto.TransactionDTO
+func (h *TransactionRespHandlerImpl) updateTransaction(payload []byte, updateFn func(*dto.TerminalTransactionDTO)) error {
+	var txDto dto.TerminalTransactionDTO
 	err := json.Unmarshal(payload, &txDto)
 	if err != nil {
 		logger.Error("Error when parsing payload", err)
 		return err
 	}
+
 	updateFn(&txDto)
 
 	var tx model.Transaction
@@ -70,5 +75,15 @@ func (h *TransactionRespHandlerImpl) updateTransaction(payload []byte, updateFn 
 		logger.Error("Error when copying struct:", copyErr)
 		return copyErr
 	}
+
+	if tx.ID == [16]byte{} && txDto.ID != [16]byte{} {
+		tx.ID = txDto.ID
+	}
+
+	if tx.PcPosId == "" && txDto.PcPosId != "" {
+		tx.PcPosId = txDto.PcPosId
+	}
+
+	logger.Info("Updating transaction:", tx.ToBeautifiedString())
 	return h.repository.UpdateTransaction(&tx)
 }

@@ -7,7 +7,6 @@ import (
 	_ "github.com/lta2705/Go-Payment-Gateway/internal/dto"
 	"github.com/lta2705/Go-Payment-Gateway/internal/model"
 	"github.com/lta2705/Go-Payment-Gateway/internal/repository"
-	"go.uber.org/zap"
 	"os"
 	"strconv"
 	"strings"
@@ -26,12 +25,12 @@ func (p PollingServiceImpl) getTimeout() int {
 
 	err := godotenv.Load()
 	if err != nil {
-		logger.Error("Error loading .env file", zap.Error(err))
+		logger.Error("Error loading .env file", err)
 	}
 	timeoutStr := os.Getenv("POLLING_MAX_TIMEOUT")
 	timeout, err := strconv.Atoi(timeoutStr)
 	if err != nil {
-		logger.Error("Error converting POLLING_MAX_TIMEOUT to int", zap.Error(err))
+		logger.Error("Error converting POLLING_MAX_TIMEOUT to int", err)
 		return 60 // default timeout
 	}
 	return timeout
@@ -46,20 +45,20 @@ func (p PollingServiceImpl) Poll(model *model.Transaction, mode string) *model.T
 		// Here you would add the logic to check transaction statuses
 		pendingTransaction, err := p.txRepo.FindByTransactionId(transactionId)
 		if err != nil {
-			logger.Error("Error fetching transaction during polling", zap.Error(err))
+			logger.Error("Error fetching transaction during polling", err)
 		}
 		if p.isUpdated(pendingTransaction, mode) {
-			logger.Info("Transaction status updated", zap.String("TransactionId", transactionId))
-			pendingTransaction.Status = constant.TxStatusSuccess
-			pendingTransaction.ErrorCode = constant.ErrCodeNoErr
-			pendingTransaction.ErrorDetail = constant.ErrDetailCode0
+			logger.Info("Transaction status updated", "TransactionId", transactionId)
+			//pendingTransaction.Status = constant.TxStatusSuccess
+			//pendingTransaction.ErrorCode = constant.ErrCodeNoErr
+			//pendingTransaction.ErrorDetail = constant.ErrDetailCode0
 
 			return pendingTransaction
 		}
 		time.Sleep(2 * time.Second) // Poll every 2 seconds
 	}
 
-	logger.Warn("Polling timeout reached without status update", zap.String("TransactionId", transactionId))
+	logger.Warn("Polling timeout reached without status update", "TransactionId", transactionId)
 
 	model.ErrorCode = constant.ErrCodeTrmNotResponse
 	model.ErrorDetail = constant.ErrDetailCode11

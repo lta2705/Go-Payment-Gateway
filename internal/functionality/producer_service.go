@@ -7,14 +7,14 @@ type ProducerService interface {
 }
 
 type ProducerServiceImpl struct {
-	producer *worker.KafkaProducerWorker
+	producer worker.KafkaProducerWorker
 }
 
 func (ps *ProducerServiceImpl) ProduceMessage(msg string) error {
 	return ps.producer.SendMessage(msg)
 }
 
-func NewProduceService(producer *worker.KafkaProducerWorker) ProducerService {
+func NewProduceService(producer worker.KafkaProducerWorker) ProducerService {
 	return &ProducerServiceImpl{
 		producer: producer,
 	}

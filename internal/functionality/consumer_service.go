@@ -2,6 +2,7 @@ package functionality
 
 import (
 	"context"
+	"github.com/bytedance/gopkg/util/logger"
 	"github.com/lta2705/Go-Payment-Gateway/internal/handler"
 	"github.com/lta2705/Go-Payment-Gateway/internal/worker"
 	"github.com/segmentio/kafka-go"
@@ -12,25 +13,25 @@ type ConsumerService interface {
 }
 
 type ConsumerServiceImpl struct {
-	Consumer *worker.KafkaConsumerWorker
+	Consumer worker.KafkaConsumerWorker
 	Handler  handler.TransactionRespHandler
 }
 
 func (cs *ConsumerServiceImpl) ReadTransaction(ctx context.Context) {
-	go func() {
-		cs.Consumer.ConsumeMessage(func(msg kafka.Message) error {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			default:
-			}
+	logger.Info("Consumer service started and waiting for messages...")
 
-			return cs.Handler.HandleTransaction(msg.Value)
-		})
-	}()
+	// Bỏ go func() ở đây. Để hàm ConsumeMessage giữ Goroutine này lại.
+	err := cs.Consumer.ConsumeMessage(func(msg kafka.Message) error {
+		logger.Info("Message received!")
+		return cs.Handler.HandleTransaction(msg.Value)
+	})
+
+	if err != nil {
+		logger.Error("Consumer stopped!", err)
+	}
 }
 
-func NewConsumerService(consumer *worker.KafkaConsumerWorker, handler handler.TransactionRespHandler) ConsumerService {
+func NewConsumerService(consumer worker.KafkaConsumerWorker, handler handler.TransactionRespHandler) ConsumerService {
 	return &ConsumerServiceImpl{
 		Consumer: consumer,
 		Handler:  handler,

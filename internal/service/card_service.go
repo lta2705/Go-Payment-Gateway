@@ -1,7 +1,7 @@
 package service
 
 import (
-	"encoding/json"
+	_ "encoding/json"
 	"github.com/bytedance/gopkg/util/logger"
 	"github.com/google/uuid"
 	"github.com/jinzhu/copier"
@@ -10,6 +10,7 @@ import (
 	"github.com/lta2705/Go-Payment-Gateway/internal/model"
 	"github.com/lta2705/Go-Payment-Gateway/internal/repository"
 	"github.com/lta2705/Go-Payment-Gateway/internal/worker"
+	"github.com/lta2705/Go-Payment-Gateway/utils"
 )
 
 type CardService interface {
@@ -17,9 +18,10 @@ type CardService interface {
 }
 
 type CardServiceImpl struct {
-	txRepo         repository.TransactionRepository
-	pollingService PollingService
-	sender         *worker.KafkaProducerWorker
+	txRepo               repository.TransactionRepository
+	merchantTerminalRepo repository.MerchantTerminalRepository
+	pollingService       PollingService
+	sender               worker.KafkaProducerWorker
 }
 
 func (c *CardServiceImpl) CreateCardTransaction(dto *dto.TransactionDTO) (*dto.TransactionDTO, error) {
@@ -63,12 +65,18 @@ func (c *CardServiceImpl) CreateCardTransaction(dto *dto.TransactionDTO) (*dto.T
 		return dto, error
 	}
 
-	jsonData, err := json.Marshal(newTransaction)
+	terminalId, findErr := c.merchantTerminalRepo.FindTerminalIdByPcPosId(newTransaction.PcPosId)
+	if findErr != nil {
+		logger.Error("Failed to find terminal ID by PcPosId", findErr, "PcPosId", newTransaction.PcPosId)
+		return nil, findErr
+	}
+
+	jsonData, err := utils.EnrichTransactionToJSON(newTransaction, terminalId)
 	if err != nil {
 		logger.Error("Failed to marshal transaction to JSON", err)
 	} else {
 		// 2. Gửi qua Kafka
-		senderErr := c.sender.SendMessage(string(jsonData))
+		senderErr := c.sender.SendMessage(jsonData)
 		if senderErr != nil {
 			logger.Error("Failed to produce message to sender server", senderErr, "TransactionId", transactionId)
 			return nil, senderErr
@@ -89,10 +97,11 @@ func (c *CardServiceImpl) CreateCardTransaction(dto *dto.TransactionDTO) (*dto.T
 	return dto, nil
 }
 
-func NewCardService(txRepo repository.TransactionRepository, pollingService PollingService, sender *worker.KafkaProducerWorker) CardService {
+func NewCardService(txRepo repository.TransactionRepository, pollingService PollingService, sender worker.KafkaProducerWorker, merchantTerminalRepo repository.MerchantTerminalRepository) CardService {
 	return &CardServiceImpl{
-		txRepo:         txRepo,
-		pollingService: NewPollingService(txRepo),
-		sender:         sender,
+		txRepo:               txRepo,
+		pollingService:       pollingService,
+		sender:               sender,
+		merchantTerminalRepo: merchantTerminalRepo,
 	}
 }

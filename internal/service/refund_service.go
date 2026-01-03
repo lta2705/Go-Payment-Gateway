@@ -19,7 +19,7 @@ type RefundService interface {
 type RefundServiceImpl struct {
 	txRepo         repository.TransactionRepository
 	pollingService PollingService
-	sender         *worker.KafkaProducerWorker
+	sender         worker.KafkaProducerWorker
 }
 
 func (r *RefundServiceImpl) CreateRefundTransaction(dto *dto.TransactionDTO) (*dto.TransactionDTO, error) {
@@ -92,7 +92,7 @@ func (r *RefundServiceImpl) CreateRefundTransaction(dto *dto.TransactionDTO) (*d
 	return dto, nil
 }
 
-func NewRefundService(txRepo repository.TransactionRepository, pollingService PollingService, sender *worker.KafkaProducerWorker) RefundService {
+func NewRefundService(txRepo repository.TransactionRepository, pollingService PollingService, sender worker.KafkaProducerWorker) RefundService {
 	return &RefundServiceImpl{
 		txRepo:         txRepo,
 		pollingService: pollingService,

@@ -18,6 +18,7 @@ import (
 var repositorySet = wire.NewSet(
 	repository.NewTransactionRepository,
 	repository.NewMerchantCredentialsRepository,
+	repository.NewMerchantTerminalRepository,
 )
 
 var serviceSet = wire.NewSet(
@@ -46,6 +47,7 @@ var ConsumerSet = wire.NewSet(
 
 var handlerSet = wire.NewSet(
 	handler.NewTransactionHandler,
+	handler.NewTransactionRespHandler,
 )
 
 var databaseSet = wire.NewSet(

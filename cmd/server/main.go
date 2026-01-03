@@ -15,7 +15,7 @@ func main() {
 	defer cancel()
 
 	//initialize consumer worker on a separate goroutine
-	app.Consumer.ReadTransaction(ctx)
+	go app.Consumer.ReadTransaction(ctx)
 
 	// Chạy Web Server
 	err = app.Router.Run(":8085")

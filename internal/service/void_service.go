@@ -20,7 +20,7 @@ type VoidService interface {
 type VoidServiceImpl struct {
 	txRepo         repository.TransactionRepository
 	pollingService PollingService
-	sender         *worker.KafkaProducerWorker
+	sender         worker.KafkaProducerWorker
 }
 
 func (v *VoidServiceImpl) CreateVoidTransaction(dto *dto.TransactionDTO) (*dto.TransactionDTO, error) {
@@ -112,7 +112,7 @@ func (v *VoidServiceImpl) CreateVoidTransaction(dto *dto.TransactionDTO) (*dto.T
 	return dto, nil
 }
 
-func NewVoidService(txRepo repository.TransactionRepository, pollingService PollingService, sender *worker.KafkaProducerWorker) VoidService {
+func NewVoidService(txRepo repository.TransactionRepository, pollingService PollingService, sender worker.KafkaProducerWorker) VoidService {
 	return &VoidServiceImpl{
 		txRepo:         txRepo,
 		pollingService: pollingService,

@@ -27,28 +27,30 @@ func InitializeApp() (*App, error) {
 	pollingService := service.NewPollingService(transactionRepository)
 	kafkaProducerConfig := config.LoadKafkaProducerConfig()
 	writer := middleware.CreateKafkaProducer(kafkaProducerConfig)
-	cardService := service.NewCardService(transactionRepository, pollingService, writer)
-	qrService := service.NewQRService(transactionRepository, pollingService)
-	voidService := service.NewVoidService(transactionRepository, pollingService)
-	refundService := service.NewRefundService(transactionRepository, pollingService)
+	kafkaProducerWorker := worker.NewProducerWorker(writer)
+	merchantTerminalRepository := repository.NewMerchantTerminalRepository(db)
+	cardService := service.NewCardService(transactionRepository, pollingService, kafkaProducerWorker, merchantTerminalRepository)
+	qrService := service.NewQRService(transactionRepository, pollingService, kafkaProducerWorker)
+	voidService := service.NewVoidService(transactionRepository, pollingService, kafkaProducerWorker)
+	refundService := service.NewRefundService(transactionRepository, pollingService, kafkaProducerWorker)
 	checkStatusService := service.NewCheckStatusService(transactionRepository)
 	merchantCredentialsRepository := repository.NewMerchantCredentialsRepository(db)
 	merchantCredentialsService := service.NewMerchantCredentialsService(merchantCredentialsRepository)
-	transactionHandler := handler.NewTransactionHandler(cardService, qrService, voidService, refundService, checkStatusService, merchantCredentialsService)
-	engine := routes.NewRouter(transactionHandler)
-	kafkaProducerWorker := worker.NewProducerWorker(writer)
+	transactionReqHandler := handler.NewTransactionHandler(cardService, qrService, voidService, refundService, checkStatusService, merchantCredentialsService)
+	engine := routes.NewRouter(transactionReqHandler)
 	producerService := functionality.NewProduceService(kafkaProducerWorker)
 	kafkaConsumerConfig := config.LoadKafkaConsumerConfig()
 	reader := middleware.CreateKafkaConsumer(kafkaConsumerConfig)
 	kafkaConsumerWorker := worker.NewConsumerWorker(reader)
-	consumerService := functionality.NewConsumerService(kafkaConsumerWorker, transactionRepository)
+	transactionRespHandler := handler.NewTransactionRespHandler(transactionRepository)
+	consumerService := functionality.NewConsumerService(kafkaConsumerWorker, transactionRespHandler)
 	app := NewApp(engine, producerService, consumerService)
 	return app, nil
 }
 
 // wire.go:
 
-var repositorySet = wire.NewSet(repository.NewTransactionRepository, repository.NewMerchantCredentialsRepository)
+var repositorySet = wire.NewSet(repository.NewTransactionRepository, repository.NewMerchantCredentialsRepository, repository.NewMerchantTerminalRepository)
 
 var serviceSet = wire.NewSet(service.NewCardService, service.NewQRService, service.NewVoidService, service.NewRefundService, service.NewCheckStatusService, service.NewPollingService, service.NewMerchantCredentialsService)
 
@@ -56,6 +58,6 @@ var ProducerSet = wire.NewSet(config.LoadKafkaProducerConfig, middleware.CreateK
 
 var ConsumerSet = wire.NewSet(config.LoadKafkaConsumerConfig, middleware.CreateKafkaConsumer, worker.NewConsumerWorker, functionality.NewConsumerService)
 
-var handlerSet = wire.NewSet(handler.NewTransactionHandler)
+var handlerSet = wire.NewSet(handler.NewTransactionHandler, handler.NewTransactionRespHandler)
 
 var databaseSet = wire.NewSet(config.LoadDBConfig, middleware.SetupDatabase)
