@@ -3,7 +3,6 @@ package utils
 import (
 	"github.com/bytedance/gopkg/util/logger"
 	"github.com/segmentio/kafka-go"
-	"go.uber.org/zap"
 	"time"
 )
 
@@ -16,7 +15,7 @@ func ParseAcks(acks string) int {
 	case "0":
 		return 0
 	default:
-		logger.Info("invalid acks value '%s', using '1' as default", zap.String("acks", acks))
+		logger.Info("invalid acks value '%s', using '1' as default", "acks", acks)
 		return 1
 	}
 }

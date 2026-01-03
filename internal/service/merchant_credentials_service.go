@@ -4,7 +4,6 @@ import (
 	"errors"
 	"github.com/bytedance/gopkg/util/logger"
 	"github.com/lta2705/Go-Payment-Gateway/internal/repository"
-	"go.uber.org/zap"
 )
 
 type MerchantCredentialsService interface {
@@ -24,11 +23,11 @@ func (t MerchantCredentialsServiceImpl) Authenticate(apiKey string) (string, err
 	}
 
 	if merchantID == "" {
-		logger.Warn("Authentication failed: API Key not found", zap.String("apiKey", apiKey))
+		logger.Warn("Authentication failed: API Key not found", "apiKey", apiKey)
 		return "", errors.New("invalid api key")
 	}
 
-	logger.Info("Successfully authenticated merchant", zap.String("MerchantID", merchantID))
+	logger.Info("Successfully authenticated merchant", "MerchantID", merchantID)
 	return merchantID, nil
 }
 

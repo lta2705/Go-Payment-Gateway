@@ -10,7 +10,6 @@ import (
 	"github.com/lta2705/Go-Payment-Gateway/internal/model"
 	"github.com/lta2705/Go-Payment-Gateway/internal/repository"
 	"github.com/lta2705/Go-Payment-Gateway/internal/worker"
-	"go.uber.org/zap"
 )
 
 type VoidService interface {
@@ -43,19 +42,19 @@ func (v *VoidServiceImpl) CreateVoidTransaction(dto *dto.TransactionDTO) (*dto.T
 	}
 
 	if orgTransaction == nil {
-		logger.Warn("Original transaction not found for void", zap.String("PcPosId", dto.PcPosId), zap.String("OrgPcPosTxnId", dto.OrgPcPosTxnId))
+		logger.Warn("Original transaction not found for void", "PcPosId", dto.PcPosId, "OrgPcPosTxnId", dto.OrgPcPosTxnId)
 		dto.Status = constant.TxStatusFailed
 		dto.ErrorCode = constant.ErrCodeNotFoundOriginTx
 		dto.ErrorDetail = constant.ErrDetailCode7
 		return dto, nil
 	} else if orgTransaction.Status != constant.TxStatusSuccess {
-		logger.Warn("Original transaction not successful for void", zap.String("PcPosId", dto.PcPosId), zap.String("OrgPcPosTxnId", dto.OrgPcPosTxnId))
+		logger.Warn("Original transaction not successful for void", "PcPosId", dto.PcPosId, "OrgPcPosTxnId", dto.OrgPcPosTxnId)
 		dto.Status = constant.TxStatusFailed
 		dto.ErrorCode = constant.ErrCodeTxNotSuccess
 		dto.ErrorDetail = constant.ErrDetailCode13
 		return dto, nil
 	} else if orgTransaction.Status == constant.TxStatusVoided {
-		logger.Warn("Original transaction already voided", zap.String("PcPosId", dto.PcPosId), zap.String("OrgPcPosTxnId", dto.OrgPcPosTxnId))
+		logger.Warn("Original transaction already voided", "PcPosId", dto.PcPosId, "OrgPcPosTxnId", dto.OrgPcPosTxnId)
 		dto.Status = constant.TxStatusFailed
 		dto.ErrorCode = constant.ErrCodeTxVoided
 		dto.ErrorDetail = constant.ErrDetailCode14
