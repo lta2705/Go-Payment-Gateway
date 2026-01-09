@@ -1,120 +1,156 @@
 package service
 
 import (
-	"encoding/json"
+	"errors"
+
 	"github.com/bytedance/gopkg/util/logger"
 	"github.com/google/uuid"
 	"github.com/jinzhu/copier"
+
 	"github.com/lta2705/Go-Payment-Gateway/internal/constant"
 	"github.com/lta2705/Go-Payment-Gateway/internal/dto"
 	"github.com/lta2705/Go-Payment-Gateway/internal/model"
 	"github.com/lta2705/Go-Payment-Gateway/internal/repository"
 	"github.com/lta2705/Go-Payment-Gateway/internal/worker"
+	"github.com/lta2705/Go-Payment-Gateway/utils"
 )
 
 type VoidService interface {
-	CreateVoidTransaction(dto *dto.TransactionDTO) (*dto.TransactionDTO, error)
+	CreateVoidTransaction(req *dto.TransactionDTO) (*dto.TransactionDTO, error)
 }
 
 type VoidServiceImpl struct {
-	txRepo         repository.TransactionRepository
-	pollingService PollingService
-	sender         worker.KafkaProducerWorker
+	txRepo               repository.TransactionRepository
+	merchantTerminalRepo repository.MerchantTerminalRepository
+	pollingService       PollingService
+	sender               worker.KafkaProducerWorker
 }
 
-func (v *VoidServiceImpl) CreateVoidTransaction(dto *dto.TransactionDTO) (*dto.TransactionDTO, error) {
+func (s *VoidServiceImpl) CreateVoidTransaction(req *dto.TransactionDTO) (*dto.TransactionDTO, error) {
 
-	existingVoid, _ := v.txRepo.FindByPcPosIdAndTransactionId(dto.PcPosId, dto.TransactionId)
+	// 1. Idempotency
+	existingVoid, err := s.txRepo.FindByPcPosIdAndTransactionId(req.PcPosId, req.TransactionId)
+	if err != nil {
+		logger.Error("Failed to check existing void transaction", err)
+		return nil, err
+	}
+
 	if existingVoid != nil {
-		logger.Info("Void transaction already exists", "PcPosId", dto.PcPosId, "TransactionId", dto.TransactionId)
-		dto.Status = "FAILED"
-		dto.ErrorCode = "01"
-		dto.ErrorDetail = "Void transaction already exists"
-		return dto, nil
+		logger.Info(
+			"Void transaction already exists",
+			"PcPosId", req.PcPosId,
+			"TransactionId", req.TransactionId,
+		)
+
+		req.Status = constant.TxStatusFailed
+		req.ErrorCode = constant.ErrCodeDuplicateTx
+		req.ErrorDetail = "Void transaction already exists"
+		return req, nil
 	}
 
-	orgTransaction, err := v.txRepo.FindByPcPosIdAndTransactionId(dto.PcPosId, dto.OrgPcPosTxnId)
+	// 2. Validate original transaction
+	orgTx, err := s.txRepo.FindByPcPosIdAndTransactionId(req.PcPosId, req.OrgPcPosTxnId)
 	if err != nil {
-		dto.Status = constant.TxStatusFailed
-		dto.ErrorCode = constant.ErrCodeTcpServerError
-		dto.ErrorDetail = constant.ErrDetailCode3
-		return dto, err
+		logger.Error("Failed to query original transaction for void", err)
+		req.Status = constant.TxStatusFailed
+		req.ErrorCode = constant.ErrCodeTcpServerError
+		req.ErrorDetail = constant.ErrDetailCode3
+		return req, err
 	}
 
-	if orgTransaction == nil {
-		logger.Warn("Original transaction not found for void", "PcPosId", dto.PcPosId, "OrgPcPosTxnId", dto.OrgPcPosTxnId)
-		dto.Status = constant.TxStatusFailed
-		dto.ErrorCode = constant.ErrCodeNotFoundOriginTx
-		dto.ErrorDetail = constant.ErrDetailCode7
-		return dto, nil
-	} else if orgTransaction.Status != constant.TxStatusSuccess {
-		logger.Warn("Original transaction not successful for void", "PcPosId", dto.PcPosId, "OrgPcPosTxnId", dto.OrgPcPosTxnId)
-		dto.Status = constant.TxStatusFailed
-		dto.ErrorCode = constant.ErrCodeTxNotSuccess
-		dto.ErrorDetail = constant.ErrDetailCode13
-		return dto, nil
-	} else if orgTransaction.Status == constant.TxStatusVoided {
-		logger.Warn("Original transaction already voided", "PcPosId", dto.PcPosId, "OrgPcPosTxnId", dto.OrgPcPosTxnId)
-		dto.Status = constant.TxStatusFailed
-		dto.ErrorCode = constant.ErrCodeTxVoided
-		dto.ErrorDetail = constant.ErrDetailCode14
-		return dto, nil
+	if orgTx == nil {
+		req.Status = constant.TxStatusFailed
+		req.ErrorCode = constant.ErrCodeNotFoundOriginTx
+		req.ErrorDetail = constant.ErrDetailCode7
+		return req, nil
 	}
 
-	// 3. Khởi tạo giao dịch Void mới từ DTO
-	newVoidTx := &model.Transaction{}
-	err = copier.Copy(newVoidTx, dto)
-	if err != nil {
-		dto.Status = constant.TxStatusFailed
-		dto.ErrorCode = constant.ErrCodeCannotMapping
-		dto.ErrorDetail = constant.ErrDetailCode16
+	if orgTx.Status != constant.TxStatusSuccess {
+		req.Status = constant.TxStatusFailed
+		req.ErrorCode = constant.ErrCodeTxNotSuccess
+		req.ErrorDetail = constant.ErrDetailCode13
+		return req, nil
+	}
+
+	if orgTx.Status == constant.TxStatusVoided {
+		req.Status = constant.TxStatusFailed
+		req.ErrorCode = constant.ErrCodeTxVoided
+		req.ErrorDetail = constant.ErrDetailCode14
+		return req, nil
+	}
+
+	// 3. Map DTO → Model
+	voidTx := &model.Transaction{}
+	if err := copier.Copy(voidTx, req); err != nil {
+		logger.Error("Failed to copy void DTO to model", err)
 		return nil, err
 	}
 
-	newVoidTx.ID = uuid.New()
-	newVoidTx.Status = constant.TxStatusStarted
-	newVoidTx.ErrorCode = constant.ErrCodeNoErr
-	newVoidTx.ErrorDetail = constant.ErrDetailCode0
-	newVoidTx.UpdatedBy = "SERVER"
+	voidTx.ID = uuid.New()
+	voidTx.Status = constant.TxStatusStarted
+	voidTx.ErrorCode = constant.ErrCodeNoErr
+	voidTx.ErrorDetail = constant.ErrDetailCode0
+	voidTx.UpdatedBy = "SERVER"
 
-	err = v.txRepo.CreateTransaction(newVoidTx)
-	if err != nil {
-		logger.Error("Error creating void transaction in DB", err)
-		dto.Status = constant.TxStatusFailed
-		dto.ErrorCode = constant.ErrCodeTcpServerError
-		dto.ErrorDetail = constant.ErrDetailCode3
-		return dto, err
+	// 4. Persist
+	if err := s.txRepo.CreateTransaction(voidTx); err != nil {
+		logger.Error("Failed to create void transaction in DB", err)
+		req.Status = constant.TxStatusFailed
+		req.ErrorCode = constant.ErrCodeTcpServerError
+		req.ErrorDetail = constant.ErrDetailCode3
+		return req, err
 	}
 
-	jsonData, err := json.Marshal(newVoidTx)
+	// 5. Resolve terminalId
+	terminalId, err := s.merchantTerminalRepo.FindTerminalIdByPcPosId(voidTx.PcPosId)
 	if err != nil {
-		logger.Error("Failed to marshal void transaction", err)
-	} else {
-		senderErr := v.sender.SendMessage(string(jsonData))
-		if senderErr != nil {
-			logger.Error("Failed to produce void message to Kafka", senderErr)
-			return nil, senderErr
-		}
-		logger.Info("Successfully sent void transaction to Kafka", "ID", newVoidTx.ID.String())
-	}
-
-	logger.Info("Starting polling for void transaction status update...")
-	updatedTransaction := v.pollingService.Poll(newVoidTx, "VOID")
-
-	// 7. Map kết quả cuối cùng trả về DTO
-	err = copier.Copy(dto, updatedTransaction)
-	if err != nil {
-		logger.Error("Error copying final void model to DTO", err)
+		logger.Error("Failed to find terminalId for void", err)
 		return nil, err
 	}
 
-	return dto, nil
+	// 6. Enrich & send Kafka
+	payload, err := utils.EnrichTransactionToJSON(voidTx, terminalId)
+	if err != nil {
+		logger.Error("Failed to enrich void payload", err)
+		return nil, err
+	}
+
+	if err := s.sender.SendMessage(payload); err != nil {
+		logger.Error("Failed to send void message to Kafka", err)
+		return nil, err
+	}
+
+	logger.Info(
+		"Void transaction sent to Kafka",
+		"TransactionId", voidTx.ID.String(),
+		"TerminalId", terminalId,
+	)
+
+	// 7. Polling
+	updatedTx := s.pollingService.Poll(voidTx, "VOID")
+	if updatedTx == nil {
+		return nil, errors.New("polling returned nil transaction")
+	}
+
+	// 8. Map result
+	if err := copier.Copy(req, updatedTx); err != nil {
+		logger.Error("Failed to map final void tx to DTO", err)
+		return nil, err
+	}
+
+	return req, nil
 }
 
-func NewVoidService(txRepo repository.TransactionRepository, pollingService PollingService, sender worker.KafkaProducerWorker) VoidService {
+func NewVoidService(
+	txRepo repository.TransactionRepository,
+	merchantTerminalRepo repository.MerchantTerminalRepository,
+	pollingService PollingService,
+	sender worker.KafkaProducerWorker,
+) VoidService {
 	return &VoidServiceImpl{
-		txRepo:         txRepo,
-		pollingService: pollingService,
-		sender:         sender,
+		txRepo:               txRepo,
+		merchantTerminalRepo: merchantTerminalRepo,
+		pollingService:       pollingService,
+		sender:               sender,
 	}
 }

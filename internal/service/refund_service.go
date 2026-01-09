@@ -1,101 +1,170 @@
 package service
 
 import (
-	"encoding/json"
+	"errors"
+
 	"github.com/bytedance/gopkg/util/logger"
 	"github.com/google/uuid"
 	"github.com/jinzhu/copier"
+
 	"github.com/lta2705/Go-Payment-Gateway/internal/constant"
 	"github.com/lta2705/Go-Payment-Gateway/internal/dto"
 	"github.com/lta2705/Go-Payment-Gateway/internal/model"
 	"github.com/lta2705/Go-Payment-Gateway/internal/repository"
 	"github.com/lta2705/Go-Payment-Gateway/internal/worker"
+	"github.com/lta2705/Go-Payment-Gateway/utils"
 )
 
 type RefundService interface {
-	CreateRefundTransaction(dto *dto.TransactionDTO) (*dto.TransactionDTO, error)
+	CreateRefundTransaction(req *dto.TransactionDTO) (*dto.TransactionDTO, error)
 }
 
 type RefundServiceImpl struct {
-	txRepo         repository.TransactionRepository
-	pollingService PollingService
-	sender         worker.KafkaProducerWorker
+	txRepo               repository.TransactionRepository
+	merchantTerminalRepo repository.MerchantTerminalRepository
+	pollingService       PollingService
+	sender               worker.KafkaProducerWorker
 }
 
-func (r *RefundServiceImpl) CreateRefundTransaction(dto *dto.TransactionDTO) (*dto.TransactionDTO, error) {
-	pcPosId := dto.PcPosId
-	transactionId := dto.TransactionId
-	orgPcPosTxnId := dto.OrgPcPosTxnId
+func (s *RefundServiceImpl) CreateRefundTransaction(req *dto.TransactionDTO) (*dto.TransactionDTO, error) {
 
-	existingRefund, _ := r.txRepo.FindByPcPosIdAndTransactionId(pcPosId, transactionId)
-	if existingRefund != nil {
-		logger.Info("Refund transaction already exists", "PcPosId", pcPosId, "TransactionId", transactionId)
-		dto.Status = "FAILED"
-		dto.ErrorCode = "01"
-		dto.ErrorDetail = "Refund transaction already exists"
-		return dto, nil
-	}
-
-	orgTransaction, err := r.txRepo.FindByPcPosIdAndTransactionId(pcPosId, orgPcPosTxnId)
-	if err != nil || orgTransaction == nil {
-		logger.Error("Original transaction not found for refund", err, "OrgId", orgPcPosTxnId)
-		dto.Status = constant.TxStatusFailed
-		dto.ErrorCode = constant.ErrCodeNotFoundOriginTx
-		dto.ErrorDetail = constant.ErrDetailCode7
-		return dto, err
-	}
-
-	logger.Info("Creating new refund transaction", "PcPosId", pcPosId, "TransactionId", transactionId)
-
-	// 3. Mapping DTO sang Model
-	newRefund := &model.Transaction{}
-	err = copier.Copy(newRefund, dto)
+	// 1. Idempotency check
+	existedRefund, err := s.txRepo.FindByPcPosIdAndTransactionId(req.PcPosId, req.TransactionId)
 	if err != nil {
-		logger.Error("Error copying refund DTO to model", err)
+		logger.Error("Failed to check existing refund transaction", err)
 		return nil, err
 	}
 
-	newRefund.UpdatedBy = "SERVER"
-	newRefund.ID = uuid.New()
+	if existedRefund != nil {
+		logger.Info(
+			"Refund transaction already exists",
+			"PcPosId", req.PcPosId,
+			"TransactionId", req.TransactionId,
+		)
 
-	// 4. Lưu vào Database
-	createErr := r.txRepo.CreateTransaction(newRefund)
-	if createErr != nil {
-		logger.Error("Error creating refund transaction in DB", createErr, "TransactionId", transactionId)
-		dto.Status = constant.TxStatusFailed
-		dto.ErrorCode = constant.ErrCodeTcpServerError
-		dto.ErrorDetail = constant.ErrDetailCode3
-		return dto, createErr
+		req.Status = constant.TxStatusFailed
+		req.ErrorCode = constant.ErrCodeDuplicateTx
+		req.ErrorDetail = "Refund transaction already exists"
+
+		return req, nil
 	}
 
-	jsonData, err := json.Marshal(newRefund)
+	// 2. Validate original transaction
+	orgTx, err := s.txRepo.FindByPcPosIdAndTransactionId(req.PcPosId, req.OrgPcPosTxnId)
 	if err != nil {
-		logger.Error("Failed to marshal refund transaction", err)
-	} else {
-		senderErr := r.sender.SendMessage(string(jsonData))
-		if senderErr != nil {
-			logger.Error("Failed to produce refund message to Kafka", senderErr)
-			return nil, senderErr
-		}
-		logger.Info("Successfully sent refund to Kafka", "ID", newRefund.ID.String())
+		logger.Error("Failed to query original transaction for refund", err)
+		req.Status = constant.TxStatusFailed
+		req.ErrorCode = constant.ErrCodeTcpServerError
+		req.ErrorDetail = constant.ErrDetailCode3
+		return req, err
 	}
 
-	logger.Info("Waiting for refund processing...")
-	updatedTransaction := r.pollingService.Poll(newRefund, "REFUND")
+	if orgTx == nil {
+		logger.Warn(
+			"Original transaction not found for refund",
+			"PcPosId", req.PcPosId,
+			"OrgPcPosTxnId", req.OrgPcPosTxnId,
+		)
 
-	err = copier.Copy(dto, updatedTransaction)
-	if err != nil {
-		logger.Error("Error copying final refund model to DTO", err)
+		req.Status = constant.TxStatusFailed
+		req.ErrorCode = constant.ErrCodeNotFoundOriginTx
+		req.ErrorDetail = constant.ErrDetailCode7
+
+		return req, nil
+	}
+
+	// (Giữ nguyên logic gốc: không kiểm tra SUCCESS)
+
+	// 3. Map DTO → Refund Transaction Model
+	refundTx := &model.Transaction{}
+	if err := copier.Copy(refundTx, req); err != nil {
+		logger.Error("Failed to copy refund DTO to model", err)
 		return nil, err
 	}
 
-	return dto, nil
+	refundTx.ID = uuid.New()
+	refundTx.UpdatedBy = "SERVER"
+
+	logger.Info("Creating new refund transaction", "Transaction", refundTx)
+
+	// 4. Persist refund transaction
+	if err := s.txRepo.CreateTransaction(refundTx); err != nil {
+		logger.Error(
+			"Failed to create refund transaction in DB",
+			err,
+			"TransactionId", req.TransactionId,
+		)
+
+		req.Status = constant.TxStatusFailed
+		req.ErrorCode = constant.ErrCodeTcpServerError
+		req.ErrorDetail = constant.ErrDetailCode3
+
+		return req, err
+	}
+
+	// 5. Resolve TerminalId
+	terminalId, err := s.merchantTerminalRepo.FindTerminalIdByPcPosId(refundTx.PcPosId)
+	if err != nil {
+		logger.Error(
+			"Failed to find terminalId by PcPosId",
+			err,
+			"PcPosId", refundTx.PcPosId,
+		)
+		return nil, err
+	}
+
+	// 6. Enrich payload & publish to Kafka (GIỐNG CardService)
+	payload, err := utils.EnrichTransactionToJSON(refundTx, terminalId)
+	if err != nil {
+		logger.Error("Failed to enrich refund transaction payload", err)
+		return nil, err
+	}
+
+	if err := s.sender.SendMessage(payload); err != nil {
+		logger.Error(
+			"Failed to send refund transaction to Kafka",
+			err,
+			"TransactionId", refundTx.ID.String(),
+		)
+		return nil, err
+	}
+
+	logger.Info(
+		"Refund transaction sent to Kafka successfully",
+		"TransactionId", refundTx.ID.String(),
+		"TerminalId", terminalId,
+	)
+
+	// 7. Polling for refund transaction status
+	logger.Info(
+		"Polling for refund transaction status update",
+		"TransactionId", refundTx.ID.String(),
+	)
+
+	updatedTx := s.pollingService.Poll(refundTx, "REFUND")
+	if updatedTx == nil {
+		return nil, errors.New("polling returned nil transaction")
+	}
+
+	// 8. Map Model → DTO
+	if err := copier.Copy(req, updatedTx); err != nil {
+		logger.Error("Failed to copy final refund model to DTO", err)
+		return nil, err
+	}
+
+	return req, nil
 }
 
-func NewRefundService(txRepo repository.TransactionRepository, pollingService PollingService, sender worker.KafkaProducerWorker) RefundService {
+func NewRefundService(
+	txRepo repository.TransactionRepository,
+	merchantTerminalRepo repository.MerchantTerminalRepository,
+	pollingService PollingService,
+	sender worker.KafkaProducerWorker,
+) RefundService {
 	return &RefundServiceImpl{
-		txRepo:         txRepo,
-		pollingService: pollingService,
-		sender:         sender,
+		txRepo:               txRepo,
+		merchantTerminalRepo: merchantTerminalRepo,
+		pollingService:       pollingService,
+		sender:               sender,
 	}
 }

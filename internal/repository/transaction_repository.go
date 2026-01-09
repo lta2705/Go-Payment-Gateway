@@ -2,6 +2,7 @@ package repository
 
 import (
 	"errors"
+	"github.com/bytedance/gopkg/util/logger"
 	"github.com/lta2705/Go-Payment-Gateway/internal/model"
 	"gorm.io/gorm"
 )
@@ -11,7 +12,7 @@ type TransactionRepository interface {
 	UpdateTransaction(tx *model.Transaction) error
 	GetDB() *gorm.DB
 	FindByTransactionId(transactionId string) (*model.Transaction, error)
-	FindByPcPosIdAndTransactionId(transactionId, pcPosId string) (*model.Transaction, error)
+	FindByPcPosIdAndTransactionId(pcPosId, transactionId string) (*model.Transaction, error)
 }
 
 type TransactionRepositoryImpl struct {
@@ -19,6 +20,7 @@ type TransactionRepositoryImpl struct {
 }
 
 func (tri *TransactionRepositoryImpl) CreateTransaction(tx *model.Transaction) error {
+	logger.Info("Creating transaction:", *tx)
 	return tri.db.Create(tx).Error
 }
 

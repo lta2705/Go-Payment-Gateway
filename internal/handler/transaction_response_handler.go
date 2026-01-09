@@ -4,10 +4,8 @@ import (
 	"encoding/json"
 	"github.com/Jeffail/gabs"
 	"github.com/bytedance/gopkg/util/logger"
-	"github.com/jinzhu/copier"
 	"github.com/lta2705/Go-Payment-Gateway/internal/constant"
 	"github.com/lta2705/Go-Payment-Gateway/internal/dto"
-	"github.com/lta2705/Go-Payment-Gateway/internal/model"
 	"github.com/lta2705/Go-Payment-Gateway/internal/repository"
 )
 
@@ -32,7 +30,7 @@ func (h *TransactionRespHandlerImpl) HandleTransaction(payload []byte) error {
 
 	logger.Info("Parsed JSON:", jsonParsed.String())
 
-	msgType, ok := jsonParsed.Path("MsgType").Data().(string)
+	msgType, ok := jsonParsed.Path("msgType").Data().(string)
 	if !ok {
 		return nil
 	}
@@ -41,19 +39,20 @@ func (h *TransactionRespHandlerImpl) HandleTransaction(payload []byte) error {
 
 	switch msgType {
 	case constant.MsgTypeTxReq:
-		return h.updateTransaction(payload, func(tx *dto.TerminalTransactionDTO) {
-			tx.UpdatedBy = "TCP_SERVER"
-			tx.ErrorCode = constant.ErrCodeTrmNotResponse
-			tx.ErrorDetail = constant.ErrDetailCode11
-			tx.Status = constant.TxStatusFailed
+		logger.Info("Processing transaction request message")
+		return h.updateTransaction(payload, func(txDto *dto.TerminalTransactionDTO) {
+			txDto.UpdatedBy = "TCP_SERVER"
+			txDto.ErrorCode = constant.ErrCodeTrmNotResponse
+			txDto.ErrorDetail = constant.ErrDetailCode11
+			txDto.Status = constant.TxStatusFailed
 
 		})
 	case constant.MsgTypeTxRes:
-		return h.updateTransaction(payload, func(tx *dto.TerminalTransactionDTO) {
-			tx.UpdatedBy = "TERMINAL"
-			tx.ErrorCode = constant.ErrCodeNoErr
-			tx.ErrorDetail = constant.ErrDetailCode0
-			tx.Status = constant.TxStatusSuccess
+		logger.Info("Processing transaction response message")
+		return h.updateTransaction(payload, func(txDto *dto.TerminalTransactionDTO) {
+			txDto.UpdatedBy = "TERMINAL"
+			txDto.ErrorCode = constant.ErrCodeNoErr
+			txDto.ErrorDetail = constant.ErrDetailCode0
 		})
 	}
 	return nil
@@ -61,29 +60,37 @@ func (h *TransactionRespHandlerImpl) HandleTransaction(payload []byte) error {
 
 func (h *TransactionRespHandlerImpl) updateTransaction(payload []byte, updateFn func(*dto.TerminalTransactionDTO)) error {
 	var txDto dto.TerminalTransactionDTO
-	err := json.Unmarshal(payload, &txDto)
-	if err != nil {
+	if err := json.Unmarshal(payload, &txDto); err != nil {
 		logger.Error("Error when parsing payload", err)
 		return err
 	}
 
-	updateFn(&txDto)
-
-	var tx model.Transaction
-	copyErr := copier.Copy(&tx, &txDto)
-	if copyErr != nil {
-		logger.Error("Error when copying struct:", copyErr)
-		return copyErr
+	if updateFn != nil {
+		updateFn(&txDto)
 	}
 
-	if tx.ID == [16]byte{} && txDto.ID != [16]byte{} {
-		tx.ID = txDto.ID
+	tx, err := h.repository.FindByPcPosIdAndTransactionId(
+		txDto.PcPosId,
+		txDto.TransactionId,
+	)
+	if err != nil {
+		logger.Error("Error when finding transaction:", err)
+		return err
 	}
 
-	if tx.PcPosId == "" && txDto.PcPosId != "" {
-		tx.PcPosId = txDto.PcPosId
+	if tx == nil {
+		logger.Warn("Transaction not found in database for PcPosId and TransactionId")
+		return nil
 	}
 
-	logger.Info("Updating transaction:", tx.ToBeautifiedString())
-	return h.repository.UpdateTransaction(&tx)
+	logger.Info("Found transaction:", tx)
+	logger.Info("transaction dto:", txDto)
+
+	tx.UpdatedBy = txDto.UpdatedBy
+	tx.Status = txDto.Status
+	tx.ErrorCode = txDto.ErrorCode
+	tx.ErrorDetail = txDto.ErrorDetail
+
+	logger.Info("Updating transaction:", tx)
+	return h.repository.UpdateTransaction(tx)
 }
