@@ -65,12 +65,12 @@ func (s *VoidServiceImpl) CreateVoidTransaction(req *dto.TransactionDTO) (*dto.T
 		return req, nil
 	}
 
-	if orgTx.Status != constant.TxStatusSuccess {
-		req.Status = constant.TxStatusFailed
-		req.ErrorCode = constant.ErrCodeTxNotSuccess
-		req.ErrorDetail = constant.ErrDetailCode13
-		return req, nil
-	}
+	//if orgTx.Status != constant.TxStatusSuccess {
+	//	req.Status = constant.TxStatusFailed
+	//	req.ErrorCode = constant.ErrCodeTxNotSuccess
+	//	req.ErrorDetail = constant.ErrDetailCode13
+	//	return req, nil
+	//}
 
 	if orgTx.Status == constant.TxStatusVoided {
 		req.Status = constant.TxStatusFailed
