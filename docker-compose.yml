@@ -111,6 +111,60 @@ services:
               properties:
                 bootstrap.servers: "broker:29092"
 
+  # Payment Gateway Application
+  payment-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: payment-gateway
+    restart: unless-stopped
+
+    ports:
+      - "8085:8085"
+
+    environment:
+      # Database Configuration
+      DB_HOST: ${DB_HOST:-postgres}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-123456}
+      DB_NAME: ${DB_NAME:-payment_db}
+      DB_SSLMODE: ${DB_SSLMODE:-disable}
+      DB_MAX_OPEN_CONNS: ${DB_MAX_OPEN_CONNS:-10}
+      DB_MAX_IDLE_CONNS: ${DB_MAX_IDLE_CONNS:-5}
+      DB_CONN_MAX_LIFETIME: ${DB_CONN_MAX_LIFETIME:-300}
+
+      # Kafka Configuration
+      KAFKA_BROKER: ${KAFKA_BROKER:-broker:29092}
+      KAFKA_PRODUCER_TOPIC: ${KAFKA_PRODUCER_TOPIC:-transaction_create}
+      KAFKA_CONSUMER_TOPIC: ${KAFKA_CONSUMER_TOPIC:-consumer_topic}
+      KAFKA_CONSUMER_GROUP_ID: ${KAFKA_CONSUMER_GROUP_ID:-consumer_group}
+      KAFKA_PRODUCER_ACKS: ${KAFKA_PRODUCER_ACKS:-all}
+      KAFKA_PRODUCER_RETRIES: ${KAFKA_PRODUCER_RETRIES:-5}
+      KAFKA_PRODUCER_MAX_IN_FLIGHT: ${KAFKA_PRODUCER_MAX_IN_FLIGHT:-5}
+      KAFKA_PRODUCER_ENABLE_IDEMPOTENCE: ${KAFKA_PRODUCER_ENABLE_IDEMPOTENCE:-true}
+      KAFKA_CONSUMER_AUTO_OFFSET_RESET: ${KAFKA_CONSUMER_AUTO_OFFSET_RESET:-earliest}
+      KAFKA_CONSUMER_ENABLE_AUTO_COMMIT: ${KAFKA_CONSUMER_ENABLE_AUTO_COMMIT:-true}
+
+      # Application Configuration
+      TZ: Asia/Ho_Chi_Minh
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      broker:
+        condition: service_healthy
+
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8085/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # Uncomment để sử dụng network mode host (kết nối trực tiếp với services bên ngoài)
+    # network_mode: "host"
+
 volumes:
   postgres_data:
   kafka_data:

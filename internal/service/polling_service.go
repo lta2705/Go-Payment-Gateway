@@ -28,10 +28,14 @@ func (p PollingServiceImpl) getTimeout() int {
 		logger.Error("Error loading .env file", err)
 	}
 	timeoutStr := os.Getenv("POLLING_MAX_TIMEOUT")
+	if timeoutStr == "" {
+		logger.Info("POLLING_MAX_TIMEOUT not set, using default timeout of 60000ms")
+		return 60000 // default timeout in milliseconds
+	}
 	timeout, err := strconv.Atoi(timeoutStr)
 	if err != nil {
 		logger.Error("Error converting POLLING_MAX_TIMEOUT to int", err)
-		return 60 // default timeout
+		return 60000 // default timeout in milliseconds
 	}
 	return timeout
 }
